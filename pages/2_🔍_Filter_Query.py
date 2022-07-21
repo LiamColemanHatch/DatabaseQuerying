@@ -22,22 +22,6 @@ def main():
 
     # create datasource for dropdowns in the filter form (THIS CAN BE DONE WITHOUT DB QUERYING VIA DATAFRAME... TO FIX)
 
-    ## projects
-
-    def create_critera_dropdown(table, column):
-        rcolumn = cursor.execute("""
-            SELECT DISTINCT [ProjectDetailDatabase].[dbo].?.?
-            FROM [ProjectDetailDatabase].[dbo].?
-            """,table,column,table)
-
-        columnelements = pd.DataFrame.from_records(
-            data=rcolumn
-        )
-        columnelements.loc[-1] = ''
-        columnelements = columnelements.sort_index().reset_index(drop=True)
-        return columnelements
-
-
     #order of dropdown menus in filter query
     dropdown_order = {
         'projects': None,
@@ -108,24 +92,33 @@ def main():
     # create webpage layout
 
     st.write('# Project Filtering')
-
     st.write('')
     st.write('')
-
     st.write('### Filter Criteria')
 
     # creating form
 
+    form_inputs = {
+        'projects': None,
+        'countries': None,
+        'continents': None,
+        'study_types': None,
+        'process_types': None,
+        'payable_metals': None,
+        'site_conditions': None,
+        'POX_type': None,
+    }
+
     with st.form(key='filter_form'):
-        project_input =  st.multiselect('Project Name', dropdown_order['projects'], help="""To clear field, select empty element in the dropdown menu. Press
+        project_input = form_inputs['projects'] =  st.multiselect('Project Name', dropdown_order['projects'], help="""To clear field, select empty element in the dropdown menu. Press
         submit and scroll down for filter results.""")
-        country_input = st.multiselect('Country', dropdown_order['countries'])
-        continent_input = st.multiselect('Continent', dropdown_order['continents'])
-        studytype_input = st.multiselect('Study Type', dropdown_order['study_types'])
-        hpmtype_input = st.multiselect('Process Type', dropdown_order['process_types'])
-        payablemetal_input = st.multiselect('Payable Metal', dropdown_order['payable_metals'])
-        greenbrownfield_input = st.selectbox('Greenfield/Brownfield', dropdown_order['site_conditions'], index=0)
-        acidalkaline_input = st.selectbox('POX Type', dropdown_order['POX_type'], index=0)
+        country_input = form_inputs['countries'] = st.multiselect('Country', dropdown_order['countries'])
+        continent_input = form_inputs['continents'] = st.multiselect('Continent', dropdown_order['continents'])
+        studytype_input = form_inputs['study_types'] = st.multiselect('Study Type', dropdown_order['study_types'])
+        hpmtype_input = form_inputs['process_types'] = st.multiselect('Process Type', dropdown_order['process_types'])
+        payablemetal_input = form_inputs['payable_metals'] = st.multiselect('Payable Metal', dropdown_order['payable_metals'])
+        greenbrownfield_input = form_inputs['site_conditions'] = st.selectbox('Greenfield/Brownfield', dropdown_order['site_conditions'], index=0)
+        acidalkaline_input = form_inputs['POX_type'] = st.selectbox('POX Type', dropdown_order['POX_type'], index=0)
         submit_button = st.form_submit_button(label='submit')
 
     # initializing input lists for manipulation
