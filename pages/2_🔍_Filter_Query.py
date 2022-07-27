@@ -9,7 +9,7 @@ from login import password_manager
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
 
-# define connection variables
+# configure streamlit page to wide layout, must be first streamlit call
 st.set_page_config(layout="wide")
 
 # instantiative the database connection and creating necessary object to interact with the database
@@ -17,7 +17,7 @@ cursor,cnxn = Database_Connection()
 
 def main():
 
-    # create datasource for dropdowns in the filter form (THIS CAN BE DONE WITHOUT DB QUERYING VIA DATAFRAME... TO FIX)
+    # create datasource for dropdowns in the filter form
 
     #order of dropdown menus in filter query
     dropdown_order = {
@@ -31,7 +31,7 @@ def main():
         'POX_type': None,
     }
     
-    #different SQL queries required for filter query
+    #different SQL queries required for filter query dropdowns and sql_filterquery
     dropdown_queries = {
         'singleTableLookup': """
             SELECT DISTINCT [ProjectDetailDatabase].[dbo].{}.{}
@@ -93,7 +93,7 @@ def main():
         }
     }
 
-    #looping through dropdowm menus and creating their respective DF's
+    #looping through dropdowm menus and creating their respective data sources
     for dropdown_menu_name in dropdown_order.keys():
         query_string = dropdown_queries['singleTableLookup'].format(dropdown_queries[dropdown_menu_name]['table'],
         dropdown_queries[dropdown_menu_name]['column'],
@@ -108,7 +108,6 @@ def main():
             dropdown_order[dropdown_menu_name] = dropdown_order[dropdown_menu_name].replace('NULL', np.nan).dropna(axis=0)
 
     # create webpage layout
-
     st.write('# Project Filtering')
     st.write('')
     st.write('')
@@ -126,7 +125,7 @@ def main():
         'POX_type': None,
     }
 
-    # creating dropdowns for each input type
+    # creating dropdowns for each input type, multi vs. single is determine by the given dropdown and it's tag in dropdown queries
     for input_type in form_inputs.keys():
         if dropdown_queries[input_type]['selectype'] == 'multi':
             form_inputs[input_type] = st.multiselect(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type])
@@ -142,7 +141,7 @@ def main():
             form_inputs[input_type].append('')
 
     # Create sliders with specified slider properties and store them in a dictionary of slider user inputs
-    slider_inputs = {
+    slider_data = {
         'temperature':{
             'data':None,
             'sql': None
@@ -214,15 +213,15 @@ def main():
     }
 
     # displaying sliders and their associated checkboxes
-    for slider in slider_inputs.keys():
+    for slider in slider_data.keys():
         checkbox = st.checkbox(label=slider_properties[slider]['description'], help=slider_properties[slider]['help'], key=slider)
         if checkbox:
             slider_properties[slider]['disabled'] = False
-        slider_inputs[slider]['data'] = st.slider('', min_value=slider_properties[slider]['range'][0],\
+        slider_data[slider]['data'] = st.slider('', min_value=slider_properties[slider]['range'][0],\
         max_value=slider_properties[slider]['range'][1],value=slider_properties[slider]['default'], step=slider_properties[slider]['step'],\
-        disabled=slider_properties[slider]['disabled'], key=slider_inputs[slider]['data'])
+        disabled=slider_properties[slider]['disabled'], key=slider_data[slider]['data'])
         if slider_properties[slider]['disabled']:
-            slider_inputs[slider]['data'] = (None, None)
+            slider_data[slider]['data'] = (None, None)
 
     # append dropdown data to callable parameters list for querying. study_types and POX_type are outliers requiring special forms of input. payable metal criteria is done further below
 
@@ -246,10 +245,10 @@ def main():
 
     # append slider data to callable parameters list for querying
 
-    for slider in slider_inputs:
+    for slider in slider_data:
         if slider_properties[slider]['disabled'] is False:
-            rangeparams.append(slider_inputs[slider]['data'][0])
-            rangeparams.append(slider_inputs[slider]['data'][1])
+            rangeparams.append(slider_data[slider]['data'][0])
+            rangeparams.append(slider_data[slider]['data'][1])
 
     slider_queries = {
         'genericrangequery': """
@@ -283,11 +282,11 @@ def main():
         }
     }
 
-    for slider in slider_inputs:
+    for slider in slider_data:
         if slider_properties[slider]['disabled']:
-            slider_inputs[slider]['sql'] = """"""
+            slider_data[slider]['sql'] = """"""
         else:
-            slider_inputs[slider]['sql'] = slider_queries['genericrangequery'].format(slider_queries[slider]['table'], \
+            slider_data[slider]['sql'] = slider_queries['genericrangequery'].format(slider_queries[slider]['table'], \
             slider_queries[slider]['column'])
 
     # additions to sql query for field inputs, depending on number of inputs
@@ -362,8 +361,8 @@ def main():
     for type in sql_input:
         sql_filterquery += sql_input[type]
 
-    for slider in slider_inputs:
-        sql_filterquery += slider_inputs[slider]['sql']
+    for slider in slider_data:
+        sql_filterquery += slider_data[slider]['sql']
 
     # Execute query to records with called variables
     records = cursor.execute(sql_filterquery,rangeparams).fetchall()
@@ -456,7 +455,7 @@ def main():
         ##### Based on above selections:
     """)
 
-    #Column select for query
+    # column select for query. checkboxes on by default, for each column that's toggled off, column will be dropped from df
     selectall_toggle = st.checkbox(label='Select all', value=True)
 
     column_toggle = {
@@ -509,10 +508,10 @@ def main():
     criteria_display_type = []
     criteria_display_value = []
 
-    for slider in slider_inputs.keys():
-        if slider_inputs[slider]['data'] != (None,None):
+    for slider in slider_data.keys():
+        if slider_data[slider]['data'] != (None,None):
             criteria_display_type.append(slider_properties[slider]['description'])
-            criteria_display_value.append('{0:,}'.format(slider_inputs[slider]['data'][0]) + ' - ' + '{0:,}'.format(slider_inputs[slider]['data'][1]))
+            criteria_display_value.append('{0:,}'.format(slider_data[slider]['data'][0]) + ' - ' + '{0:,}'.format(slider_data[slider]['data'][1]))
         
     criteria_display = pd.DataFrame(list(zip(criteria_display_type, criteria_display_value)), columns= ['Criteria', 'Value']).style.hide_index()
 
