@@ -1,7 +1,11 @@
+from ast import Bytes
+from openpyxl import Workbook
 import pandas as pd
 import streamlit as st
 import numpy as np
 from datetime import date
+import xlsxwriter
+from io import BytesIO
 from Config import Database_Connection
 from Config import df_print_noindex
 from login import password_manager
@@ -19,7 +23,7 @@ def main():
 
     # create datasource for dropdowns in the filter form
 
-    #order of dropdown menus in filter query
+    # order of dropdown menus in filter query
     dropdown_order = {
         'projects': None,
         'countries': None,
@@ -31,7 +35,7 @@ def main():
         'POX_type': None,
     }
     
-    #different SQL queries required for filter query dropdowns and sql_filterquery
+    # different SQL queries required for filter query dropdowns and sql_filterquery
     dropdown_queries = {
         'singleTableLookup': """
             SELECT DISTINCT [ProjectDetailDatabase].[dbo].{}.{}
@@ -93,7 +97,7 @@ def main():
         }
     }
 
-    #looping through dropdowm menus and creating their respective data sources
+    # looping through dropdowm menus and creating their respective data sources
     for dropdown_menu_name in dropdown_order.keys():
         query_string = dropdown_queries['singleTableLookup'].format(dropdown_queries[dropdown_menu_name]['table'],
         dropdown_queries[dropdown_menu_name]['column'],
@@ -364,7 +368,7 @@ def main():
     for slider in slider_data:
         sql_filterquery += slider_data[slider]['sql']
 
-    # Execute query to records with called variables
+    # execute query to records with called variables
     records = cursor.execute(sql_filterquery,rangeparams).fetchall()
 
     
@@ -376,12 +380,12 @@ def main():
         data=records,
         columns=columns,
     )
+    project_dump.name = 'Output Query'
 
     # setting database index as dataframe index
     project_dump.set_index(['ID'], inplace=True)
 
     # addressing unnecessary decimals
-
     decimal_removal = {
         'Date of information': None,
         'No of Processing Years': None,
@@ -397,7 +401,6 @@ def main():
             project_dump = project_dump.astype({type: int})
 
     # adding thousands seperators to columns
-
     project_dump.loc[:, "OreTreatmentRate"] = project_dump["OreTreatmentRate"].map('{:,.0f}'.format)
     project_dump.loc[:, "Initial Capex"] = project_dump["Initial Capex"].map('${:,.0f}'.format)
 
@@ -426,7 +429,6 @@ def main():
 
     # if metals criteria is used, filter for metal, along with rest of payable metals for that project. metal 1 OR metal 2 up to a maximum of 
     # 5 metals
-
     if form_inputs['payable_metals'][0] != '':
         if len(form_inputs['payable_metals']) == 1:
             project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0])]
@@ -513,13 +515,14 @@ def main():
             criteria_display_type.append(slider_properties[slider]['description'])
             criteria_display_value.append('{0:,}'.format(slider_data[slider]['data'][0]) + ' - ' + '{0:,}'.format(slider_data[slider]['data'][1]))
         
-    criteria_display = pd.DataFrame(list(zip(criteria_display_type, criteria_display_value)), columns= ['Criteria', 'Value']).style.hide_index()
+    criteria_display = pd.DataFrame(list(zip(criteria_display_type, criteria_display_value)), columns= ['Criteria', 'Value'])
+    criteria_display.name = 'Query Filter'
 
     # function to display table with formatting
     if criteria_display_value:
         df_print_noindex(criteria_display, type='Table')
 
-    # Display Filter Query
+    # display Filter Query
     st._legacy_dataframe(project_dump, width=50000, height=700)
 
     # download csv of results
@@ -542,15 +545,40 @@ def main():
         output_csv = df.to_csv().encode('utf-8')
         return output_csv
 
+    output = BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    workbook = writer.book
+    worksheet = workbook.add_worksheet('Result')
+    writer.sheets['Result'] = worksheet
+    worksheet.write_string(0, 0, 'Query Filter')
+
+    criteria_display.to_excel(writer, sheet_name='Result', startrow=1, startcol=0)
+    worksheet.write_string(criteria_display.shape[0] + 4, 0, 'Query Output')
+    project_dump.to_excel(writer, sheet_name ='Result', startrow=criteria_display.shape[0] + 5, startcol=0)
+    
+    for column in project_dump:
+        column_length = max(project_dump[column].astype(str).map(len).max(), len(column))
+        col_idx = project_dump.columns.get_loc(column)+1
+        worksheet.set_column(col_idx, col_idx, column_length)
+    
+    if not criteria_display.empty:
+        for column in criteria_display:
+            column_length = max(criteria_display[column].astype(str).map(len).max(), len(column))
+            col_idx = criteria_display.columns.get_loc(column)+1
+            worksheet.set_column(col_idx, col_idx, column_length)
+            
+
+    writer.save()
+    processed_data = output.getvalue()
+
     csv = convert_df(project_dump)
 
     st.download_button(
-    "Download",
-    csv,
-    "ProjectFilter"+str(date.today())+".csv",
-    "text/csv",
-    key='download-csv'
-    )
+    label="Download",
+    data=processed_data,
+    file_name= 'FilteredDatabaseQuery.xlsx',
+    key='download-excel'
+        )
 
     # close cursor
     cursor.close()
@@ -561,7 +589,7 @@ if "user" not in st.session_state:
 if "dev" not in st.session_state:
     st.session_state.dev = False
 
-# Authentication
+# authentication
 if st.session_state.user or st.session_state.dev:
     main()
 else:
