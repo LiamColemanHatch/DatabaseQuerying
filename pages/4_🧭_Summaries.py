@@ -508,9 +508,14 @@ def main():
         key='download-csv'
         )
 
+if "user" not in st.session_state:
+    st.session_state.user = False
+
+if "dev" not in st.session_state:
+    st.session_state.dev = False
+
 # Authentication
 if st.session_state.user or st.session_state.dev:
     main()
 else:
-    st.write("Please enter a valid password")
     password_manager(cursor)

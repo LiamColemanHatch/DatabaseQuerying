@@ -1,12 +1,9 @@
-
-from asyncio.windows_events import NULL
-from matplotlib.pyplot import axis
-import sqlalchemy
 import pandas as pd
 import streamlit as st
 import numpy as np
 from datetime import date
 from Config import Database_Connection
+from Config import df_print_noindex
 from login import password_manager
 
 # programming aid variables
@@ -40,37 +37,59 @@ def main():
             SELECT DISTINCT [ProjectDetailDatabase].[dbo].{}.{}
             FROM [ProjectDetailDatabase].[dbo].{}
             """,
+        'sqlgeneral':"""
+            {}.{} LIKE IIF(? IS NULL, {}.{}, ?)
+        """,
+        'sqlexact': """
+            {}.{} = ?
+        """,
         'projects': {
             'table': '[Project]',
-            'column': '[Name]'
+            'column': '[Name]',
+            'label': 'Project Name',
+            'selectype': 'multi'
         },
         'countries': {
             'table': '[Project]',
-            'column': '[Country]'
+            'column': '[Country]',
+            'label': 'Country',
+            'selectype': 'multi'
         },
         'continents': {
             'table': '[Project]',
-            'column': '[Continent]'
+            'column': '[Continent]',
+            'label': 'Continent',
+            'selectype': 'multi'
         },
         'study_types': {
             'table': '[Project]',
-            'column': '[StudyType]'
+            'column': '[StudyType]',
+            'label': 'Study Type',
+            'selectype': 'multi'
         },
         'process_types': {
             'table': '[Project]',
-            'column': '[HPM Type]'
+            'column': '[HPM Type]',
+            'label': 'Process Type',
+            'selectype': 'multi'
         },
         'payable_metals': {
             'table': '[PayableMetals]',
-            'column': '[name]'
+            'column': '[name]',
+            'label': 'Payable Metal',
+            'selectype': 'multi'
         },
         'site_conditions': {
             'table': '[Project]',
-            'column': '[SiteConditions]'
+            'column': '[SiteConditions]',
+            'label': 'Site Conditions',
+            'selectype': 'single'
         },
         'POX_type': {
             'table': '[Autoclave]',
-            'column': '[Acid/Alkaline]'
+            'column': '[Acid/Alkaline]',
+            'label': 'POX Type',
+            'selectype': 'single'
         }
     }
 
@@ -85,9 +104,8 @@ def main():
         dropdown_order[dropdown_menu_name] = pd.DataFrame.from_records(data=query_results)
         dropdown_order[dropdown_menu_name].loc[-1] = ''
         dropdown_order[dropdown_menu_name] = dropdown_order[dropdown_menu_name].sort_index().reset_index(drop=True)
-        if dropdown_menu_name == 'study_types':
+        if dropdown_menu_name == 'study_types' or 'POX_type' :
             dropdown_order[dropdown_menu_name] = dropdown_order[dropdown_menu_name].replace('NULL', np.nan).dropna(axis=0)
-
 
     # create webpage layout
 
@@ -97,7 +115,6 @@ def main():
     st.write('### Filter Criteria')
 
     # creating form
-
     form_inputs = {
         'projects': None,
         'countries': None,
@@ -109,407 +126,212 @@ def main():
         'POX_type': None,
     }
 
-    with st.form(key='filter_form'):
-        project_input = form_inputs['projects'] =  st.multiselect('Project Name', dropdown_order['projects'], help="""To clear field, select empty element in the dropdown menu. Press
-        submit and scroll down for filter results.""")
-        country_input = form_inputs['countries'] = st.multiselect('Country', dropdown_order['countries'])
-        continent_input = form_inputs['continents'] = st.multiselect('Continent', dropdown_order['continents'])
-        studytype_input = form_inputs['study_types'] = st.multiselect('Study Type', dropdown_order['study_types'])
-        hpmtype_input = form_inputs['process_types'] = st.multiselect('Process Type', dropdown_order['process_types'])
-        payablemetal_input = form_inputs['payable_metals'] = st.multiselect('Payable Metal', dropdown_order['payable_metals'])
-        greenbrownfield_input = form_inputs['site_conditions'] = st.selectbox('Greenfield/Brownfield', dropdown_order['site_conditions'], index=0)
-        acidalkaline_input = form_inputs['POX_type'] = st.selectbox('POX Type', dropdown_order['POX_type'], index=0)
-        submit_button = st.form_submit_button(label='submit')
+    # creating dropdowns for each input type
+    for input_type in form_inputs.keys():
+        if dropdown_queries[input_type]['selectype'] == 'multi':
+            form_inputs[input_type] = st.multiselect(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type])
+        if dropdown_queries[input_type]['selectype'] == 'single':
+            form_inputs[input_type] = st.selectbox(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type], index=0)
 
-    # initializing input lists for manipulation
+    # initializing input lists for manipulation: ensuring all form inputs are of same type and initiallizing lists
+    # if no input it provided
+    for input_type in form_inputs.keys():
+        if isinstance(form_inputs[input_type], str):
+            form_inputs[input_type] = [form_inputs[input_type]]
+        if not form_inputs[input_type]:
+            form_inputs[input_type].append('')
 
-    if not project_input:
-        project_input.append('')
-    
-    if not country_input:
-        country_input.append('')
-    
-    if not continent_input:
-        continent_input.append('')
+    # Create sliders with specified slider properties and store them in a dictionary of slider user inputs
+    slider_inputs = {
+        'temperature':{
+            'data':None,
+            'sql': None
+        },
+        'pressure':{
+            'data':None,
+            'sql': None
+        },
+        'throughput':{
+            'data':None,
+            'sql': None
+        },
+        'sulphur':{
+            'data':None,
+            'sql': None
+        },
+        'reserves':{
+            'data':None,
+            'sql': None
+        },
+    }
 
-    if not studytype_input:
-        studytype_input.append('')
+    slider_properties = {
+        'temperature': {
+            'description': 'Operating Temperature ('+degree_sign+'C)',
+            'help': None,
+            'range': [0,500],
+            'default': [150,400],
+            'step': 5,
+            'units': degree_sign+'C',
+            'disabled': True
+        },
+        'pressure': {
+            'description': 'Operating Pressure (kPa)',
+            'help': 'Absolute',
+            'range': [0,4000],
+            'default': [1500,2500],
+            'step': 10,
+            'units': 'kPa',
+            'disabled': True
+        },
+        'throughput': {
+            'description': 'Ore Throughput Rate (t/a)',
+            'help': 'Total circuit throughput',
+            'range': [0,8000000],
+            'default': [200000,1000000],
+            'step': 100000,
+            'units': 't/a',
+            'disabled': True
+        },
+        'sulphur': {
+            'description': 'Feed Sulphur (%)',
+            'help': None,
+            'range': [0,50],
+            'default': [5,10],
+            'step': 1,
+            'units': '%',
+            'disabled': True
+        },
+        'reserves': {
+            'description': 'Total Reserves (Mt)',
+            'help': 'Million metric tonnes',
+            'range': [0,1500],
+            'default': [200,300],
+            'step': 10,
+            'units': 'Mt',
+            'disabled': True
+        },
+    }
 
-    if not payablemetal_input:
-        payablemetal_input.append('')
+    # displaying sliders and their associated checkboxes
+    for slider in slider_inputs.keys():
+        checkbox = st.checkbox(label=slider_properties[slider]['description'], help=slider_properties[slider]['help'], key=slider)
+        if checkbox:
+            slider_properties[slider]['disabled'] = False
+        slider_inputs[slider]['data'] = st.slider('', min_value=slider_properties[slider]['range'][0],\
+        max_value=slider_properties[slider]['range'][1],value=slider_properties[slider]['default'], step=slider_properties[slider]['step'],\
+        disabled=slider_properties[slider]['disabled'], key=slider_inputs[slider]['data'])
+        if slider_properties[slider]['disabled']:
+            slider_inputs[slider]['data'] = (None, None)
 
-    if not hpmtype_input:
-        hpmtype_input.append('')
+    # append dropdown data to callable parameters list for querying. study_types and POX_type are outliers requiring special forms of input. payable metal criteria is done further below
 
-    if not acidalkaline_input:
-        acidalkaline_input = ''
+    rangeparams = []
 
-    if not greenbrownfield_input:
-        greenbrownfield_input = ''
+    for input in form_inputs:
+        if input == 'study_types':
+            if form_inputs[input][0] != '':
+                for i in range(len(form_inputs[input])):
+                    rangeparams.append(form_inputs[input][i])
+        elif input == 'POX_type':
+            if form_inputs[input][0] != '':
+                for i in range(len(form_inputs[input])):
+                    rangeparams.append(form_inputs[input][i])
+                    rangeparams.append(f"%{form_inputs[input][i]}%")
+        elif input != 'payable_metals':
+            for i in range(len(form_inputs[input])):
+                rangeparams.append(form_inputs[input][i])
+                rangeparams.append(f"%{form_inputs[input][i]}%")
+                st.write(input)
 
-    # temperature slider
+    # append slider data to callable parameters list for querying
 
-    temp_check = st.checkbox("Operating Temperature ("+degree_sign+"C)")
+    for slider in slider_inputs:
+        if slider_properties[slider]['disabled'] is False:
+            rangeparams.append(slider_inputs[slider]['data'][0])
+            rangeparams.append(slider_inputs[slider]['data'][1])
 
-    if temp_check:
-        temp_checkinput = False
-    else:
-        temp_checkinput = True
-
-    temp_slider = st.slider('', min_value=0, max_value=500, value=(150, 400), step=5, disabled=temp_checkinput)
-
-    if temp_checkinput is False:
-        temp_range = temp_slider
-    else:
-        temp_range = (NULL, NULL)
-
-    # pressure slider
-
-    press_check = st.checkbox('Operating Pressure (kPa)', help='Absolute')
-
-    if press_check:
-        press_checkinput = False
-    else:
-        press_checkinput = True
-
-    press_slider = st.slider('', min_value=0, max_value=4000, value=(1500, 2500), step=5, disabled=press_checkinput)
-
-    if press_checkinput is False:
-        press_range = press_slider
-    else:
-        press_range = (NULL, NULL)
-
-    # ore throughput slider
-
-    ore_check = st.checkbox('Ore Throughput Rate (t/a)', help='Total circuit throughput')
-
-    if ore_check:
-        ore_checkinput = False
-    else:
-        ore_checkinput = True
-
-    ore_slider = st.slider('', min_value=0, max_value=8000000, value=(750000, 1000000), step=100000, disabled=ore_checkinput)
-
-    if ore_checkinput is False:
-        ore_range = ore_slider
-    else:
-        ore_range = (NULL, NULL)
-
-    # feed sulphur slider
-
-    sulph_check = st.checkbox('Feed Sulphur (%)')
-
-    if sulph_check:
-        sulph_checkinput = False
-    else:
-        sulph_checkinput = True
-
-    sulph_slider = st.slider('', min_value=0, max_value=50, value=(5, 10), step=1, disabled=sulph_checkinput)
-
-    if sulph_checkinput is False:
-        sulph_range = sulph_slider
-    else:
-        sulph_range = (NULL, NULL)
-
-    # total reserves slider
-
-    resrv_check = st.checkbox('Total Reserves (Mt)', help='Mt is million metric tonnes')
-
-    if resrv_check:
-        resrv_checkinput = False
-    else:
-        resrv_checkinput = True
-
-    resrv_slider = st.slider('', min_value=0, max_value=1500, value=(200, 300), step=10, disabled=resrv_checkinput)
-
-    if resrv_checkinput is False:
-        resrv_range = resrv_slider
-    else:
-        resrv_range = (NULL, NULL)
-
-    # define like variables for inprecise field inputs for each element of input list
-
-    projectparam = []
-
-    for i in range(len(project_input)):
-        projectparam.append(project_input[i])
-        projectparam.append(f'%{project_input[i]}%')
-
-    countryparam = []
-
-    for i in range(len(country_input)):
-        countryparam.append(country_input[i])
-        countryparam.append(f'%{country_input[i]}%')
-
-    continentparam = []
-
-    for i in range(len(continent_input)):
-        continentparam.append(continent_input[i])
-        continentparam.append(f'%{continent_input[i]}%')
-
-    studytypeparam = []
-
-    for i in range(len(studytype_input)):
-        studytypeparam.append(studytype_input[i])  
-
-    hpmtypeparam = []
-
-    for i in range(len(hpmtype_input)):
-        hpmtypeparam.append(hpmtype_input[i])
-        hpmtypeparam.append(f'%{hpmtype_input[i]}%')  
-
-    greenbrownfieldparam = f'%{greenbrownfield_input}%'
-    acidalkalineparam = f'%{acidalkaline_input}%'
-
-    # defining range criteria for sql input, to be added on to sql select query if checkbox is checked
-
-    ## temp range criteria
-
-            # pulling low and high variables from range tuple
-
-    temprangelow = temp_range[0]
-    temprangehigh = temp_range[1]
-
-        # check if checkbox is checked, if not, no sql input
-
-    if temp_checkinput is True:
-        tempset_sql = """
-        
-        """
-    else:
-        tempset_sql = """
+    slider_queries = {
+        'genericrangequery': """
         AND
+        {}.{} Between ? And ?
+        """,
+        'temperature': {
+            'table': '[Autoclave]',
+            'column': '[OperatingTemp]',
+            'label': 'Operating Temperature ('+degree_sign+'C)'
+        },
+        'pressure': {
+            'table': '[Autoclave]',
+            'column': '[OperatingPressure]',
+            'label': 'Operating Pressure (kPa)'
+        },
+        'throughput': {
+            'table': '[Project]',
+            'column': '[OreTreatmentRate]',
+            'label': 'Ore Throughput Rate (t/a)'
+        },
+        'sulphur': {
+            'table': '[Autoclave]',
+            'column': '[FeedSulphurConcentration]',
+            'label': 'Feed Sulphur (%)'
+        },
+        'reserves': {
+            'table': '[Project]',
+            'column': '[TotalReserves]',
+            'label': 'Total Reserves (Mt)'
+        }
+    }
 
-        [Autoclave].OperatingTemp Between ? And ?
-
-        """
-
-    ## pressure range criteria
-
-            # pulling low and high variables from range tuple
-
-    pressrangelow = press_range[0]
-    pressrangehigh = press_range[1]
-
-            # check if checkbox is checked if not, no sql input
-
-    if press_checkinput is True:
-        pressset_sql = """
-        
-        """
-    else:
-        pressset_sql = """
-        AND
-
-        [Autoclave].OperatingPressure Between ? And ?
-
-        """
-
-    ## ore throughput range criteria
-
-            # pulling low and high variables from range tuple
-
-    orerangelow = ore_range[0]
-    orerangehigh = ore_range[1]
-
-            # check if checkbox is checked if not, no sql input
-
-    if ore_checkinput is True:
-        oreset_sql = """
-        
-        """
-    else:
-        oreset_sql = """
-        AND
-
-        [Project].OreTreatmentRate Between ? And ?
-
-        """
-
-    ## feed sulphur range criteria
-
-            # pulling low and high variables from range tuple
-
-    sulphrangelow = sulph_range[0]
-    sulphrangehigh = sulph_range[1]
-
-            # check if checkbox is checked if not, no sql input
-
-    if sulph_checkinput is True:
-        sulphset_sql = """
-        
-        """
-    else:
-        sulphset_sql = """
-        AND
-
-        [Autoclave].FeedSulphurConcentration Between ? And ?
-
-        """
-
-    ## total reserves range criteria
-
-            # pulling low and high variables from range tuple
-
-    resrvrangelow = resrv_range[0]
-    resrvrangehigh = resrv_range[1]
-
-            # check if checkbox is checked if not, no sql input
-
-    if resrv_checkinput is True:
-        resrvset_sql = """
-        
-        """
-    else:
-        resrvset_sql = """
-        AND
-
-        [Project].TotalReserves Between ? And ?
-
-        """
-
-
-    # define query strings
-
-    # select query, not in use
-
-    sql_select = """
-    SELECT *
-    FROM [ProjectDetailDatabase].[dbo].[Project]
-
-    WHERE [Project].[Name] LIKE IIF(? IS NULL, [Project].[Name], ?)
-
-    AND
-
-    [Project].[Country] LIKE IIF(? IS NULL, [Project].[Country], ?)
-
-    AND
-
-    [Project].[Continent] LIKE IIF(? IS NULL, [Project].[Continent], ?)
-
-    AND
-
-    [Project].[StudyType] LIKE IIF(? IS NULL, [Project].[StudyType], ?)
-
-    AND
-
-    [Project].[HPM Type] LIKE IIF(? IS NULL, [Project].[HPM Type], ?)
-
-    --AND
-
-    --WHERE [Project].[Country] LIKE IIF(? IS NULL, [Project].[Country], ?)
-
-    --AND
-
-    --WHERE [Project].[Country] LIKE IIF(? IS NULL, [Project].[Country], ?)
-
-
-
-    """
+    for slider in slider_inputs:
+        if slider_properties[slider]['disabled']:
+            slider_inputs[slider]['sql'] = """"""
+        else:
+            slider_inputs[slider]['sql'] = slider_queries['genericrangequery'].format(slider_queries[slider]['table'], \
+            slider_queries[slider]['column'])
 
     # additions to sql query for field inputs, depending on number of inputs
 
-    projectinput_sql = """
-    WHERE
-    ([Project].[Name] LIKE IIF(? IS NULL, [Project].[Name], ?)
+    sql_input = {
+        'projects': None,
+        'countries': None,
+        'continents': None,
+        'study_types': None,
+        'process_types': None,
+        'site_conditions': None,
+        'POX_type': None,
+    }    
+    # generates sql code to add to base query. Based on entries to the form, will adjust for number of inputs by adding more sql criteria. sql stored in sql input
+    for type in sql_input:
+        if type == 'POX_type':
+            if form_inputs[type][0] == '':
+                sql_input[type] = """"""
+            else:
+                sql_input[type] = "AND" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],  
+                dropdown_queries[type]['table'], dropdown_queries[type]['column'])
+        elif type == 'study_types':
+            if form_inputs[type][0] == '':
+                sql_input[type] = """"""
+            else:
+                sql_input[type] = "AND" + "(" + dropdown_queries['sqlexact'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'])
 
-    """
-    for i in range(len(project_input)-1):
-        projectinput_sql += """
-        OR
-        [Project].[Name] LIKE IIF(? IS NULL, [Project].[Name], ?)        
+                for i in range(len(form_inputs[type])-1):
+                    sql_input[type] += "OR" + dropdown_queries['sqlexact'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'])
+                sql_input[type] += ")"
+        else:
+            if type == 'projects':
+                sql_input[type] = "WHERE"
+            else:
+                sql_input[type] = "AND"
 
-        """
+            sql_input[type] += "(" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],  
+            dropdown_queries[type]['table'], dropdown_queries[type]['column'])
 
-    projectinput_sql += ')'
-
-    countryinput_sql = """
-    AND
-    ([Project].[Country] LIKE IIF(? IS NULL, [Project].[Country], ?)
-
-    """
-
-    for i in range(len(country_input)-1):
-        countryinput_sql +="""
-        OR
-        [Project].[Country] LIKE IIF(? IS NULL, [Project].[Country], ?)     
-
-        """
-
-    countryinput_sql += ')'
-
-    continentinput_sql = """
-    AND
-    ([Project].[Continent] LIKE IIF(? IS NULL, [Project].[Continent], ?)    
-    """
-
-    for i in range(len(continent_input)-1):
-        continentinput_sql +="""
-        OR
-        [Project].[Continent] LIKE IIF(? IS NULL, [Project].[Continent], ?)     
-
-        """
-
-    continentinput_sql += ')'    
-
-    if studytype_input[0] == '':
-        studytypeinput_sql = """
-        """
-    else:
-        studytypeinput_sql = """
-        AND
-        ([Project].[StudyType] = ?    
-        """
-
-        for i in range(len(studytype_input)-1):
-            studytypeinput_sql += """
-            OR
-            [Project].[StudyType] = ?     
-
-            """
-        studytypeinput_sql += ')' 
-
-    hpmtypeinput_sql = """
-    AND
-    ([Project].[HPM Type] LIKE IIF(? IS NULL, [Project].[HPM Type], ?)    
-    """
-
-    for i in range(len(hpmtype_input)-1):
-        hpmtypeinput_sql += """
-        OR
-        [Project].[HPM Type] LIKE IIF(? IS NULL, [Project].[HPM Type], ?)     
-
-        """
-    hpmtypeinput_sql += ')'    
-
-    otherinputs_sql = """
-
-    AND
-    [Project].[HPM Type] LIKE IIF(? IS NULL, [Project].[HPM Type], ?)
-
-    """
-
-    if greenbrownfield_input == '':
-        gbtypeinput_sql = """
-        """
-    else:
-        gbtypeinput_sql = """
-    
-        AND
-        [Project].[SiteConditions] LIKE IIF(? IS NULL, [Project].[SiteConditions], ?)
-        """
-
-    if acidalkaline_input == '':
-        phtypeinput_sql = """
-        """
-    
-    else:
-        phtypeinput_sql = """
-    
-        AND
-        [Autoclave].[Acid/Alkaline] LIKE IIF(? IS NULL, [Autoclave].[Acid/Alkaline], ?)
-        """
-
+            for i in range(len(form_inputs[type])-1):
+                sql_input[type] += "OR" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],  
+                dropdown_queries[type]['table'], dropdown_queries[type]['column'])
+            sql_input[type] += ")"
+                    
     sql_filterquery = """
     SELECT DISTINCT [Project].[ID],
         [Project].Name,
@@ -536,134 +358,44 @@ def main():
         LEFT JOIN [ProjectDetailDatabase].[dbo].[ProjectFinancials] ON [Project].[ID] = [ProjectFinancials].[ID(Projects)])
         LEFT JOIN [ProjectDetailDatabase].[dbo].[PayingMetal] ON Project.ID = [PayingMetal].[ID(Proj)]
 
+    """ 
+    for type in sql_input:
+        sql_filterquery += sql_input[type]
 
-
-    """ + projectinput_sql + countryinput_sql + continentinput_sql + studytypeinput_sql + hpmtypeinput_sql + phtypeinput_sql + gbtypeinput_sql + tempset_sql + pressset_sql + oreset_sql + sulphset_sql + resrvset_sql
+    for slider in slider_inputs:
+        sql_filterquery += slider_inputs[slider]['sql']
 
     # Execute query to records with called variables
-
-    # define default range params
-
-    rangeparams = []
-
-    for i in range(len(projectparam)):
-        rangeparams.append(projectparam[i])
-
-    for i in range(len(countryparam)):
-        rangeparams.append(countryparam[i])
-
-    for i in range(len(continentparam)):
-        rangeparams.append(continentparam[i])  
-
-    if studytype_input[0] != '':
-
-        for i in range (len(studytypeparam)):
-            rangeparams.append(studytypeparam[i])  
-
-    for i in range (len(hpmtypeparam)):
-        rangeparams.append(hpmtypeparam[i]) 
-
-    # acid and gbfield do not require 
-
-    if greenbrownfield_input:
-        rangeparams.append(greenbrownfield_input)
-        rangeparams.append(greenbrownfieldparam)  
-  
-    if acidalkaline_input:
-        rangeparams.append(acidalkaline_input)
-        rangeparams.append(acidalkalineparam)
-
-    # if statements: adding range inputs onto the params variable if applicable
-
-    ## temperature range called variable appending to rangeparams list
-
-    if temp_checkinput is True:
-        rangeparams = rangeparams
-    else:
-        rangeparams.append(temprangelow)
-        rangeparams.append(temprangehigh)
-
-    ## pressure range called variable appending to rangeparams list
-
-    if press_checkinput is True:
-        rangeparams = rangeparams
-    else:
-        rangeparams.append(pressrangelow)
-        rangeparams.append(pressrangehigh)
-
-    ## ore throughput range called variable appending to rangeparams list
-
-    if ore_checkinput is True:
-        rangeparams = rangeparams
-    else:
-        rangeparams.append(orerangelow)
-        rangeparams.append(orerangehigh)
-
-    ## feed sulphur range called variable appending to rangeparams list
-
-    if sulph_checkinput is True:
-        rangeparams = rangeparams
-    else:
-        rangeparams.append(sulphrangelow)
-        rangeparams.append(sulphrangehigh)
-
-    ## total reserves range called variable appending to rangeparams list
-
-    if resrv_checkinput is True:
-        rangeparams = rangeparams
-    else:
-        rangeparams.append(resrvrangelow)
-        rangeparams.append(resrvrangehigh)
-
-    # execute query to records with called variables
-
     records = cursor.execute(sql_filterquery,rangeparams).fetchall()
 
-    st.write(rangeparams)
+    
     # define record column names
-
     columns = [column[0] for column in cursor.description]
 
-    filterparam_data = {
-        "Project": project_input,
-        "Country": country_input,
-        "Continent": continent_input,
-        "Study Type": studytype_input,
-        "Process Type": hpmtype_input,
-        "Payable Metal": NULL
-    }
-
-    filterparam_df = pd.DataFrame([])
-
     # dump records into a dataframe
-
     project_dump = pd.DataFrame.from_records(
         data=records,
         columns=columns,
     )
 
     # setting database index as dataframe index
-
     project_dump.set_index(['ID'], inplace=True)
 
     # addressing unnecessary decimals
 
-    project_dump = project_dump.fillna({'Date of information':0})
-    project_dump = project_dump.astype({'Date of information': int})
+    decimal_removal = {
+        'Date of information': None,
+        'No of Processing Years': None,
+        'OperatingPressure': None,
+        'OperatingTemp': None,
+        'OreTreatmentRate': None,
+        'Initial Capex': None
+    }
 
-    project_dump = project_dump.fillna({'No of Processing Years':0})
-    project_dump = project_dump.astype({'No of Processing Years': int})
-
-    project_dump = project_dump.fillna({'OperatingPressure':0})
-    project_dump = project_dump.astype({'OperatingPressure': int})
-
-    project_dump = project_dump.fillna({'OperatingTemp':0})
-    project_dump = project_dump.astype({'OperatingTemp': int})
-
-    project_dump = project_dump.fillna({'OreTreatmentRate':0})
-    project_dump = project_dump.astype({'OreTreatmentRate': int})
-
-    project_dump = project_dump.fillna({'Initial Capex':0})
+    for type in decimal_removal:
+        project_dump = project_dump.fillna({type: 0})
+        if type != 'Initial Capex':
+            project_dump = project_dump.astype({type: int})
 
     # adding thousands seperators to columns
 
@@ -671,7 +403,6 @@ def main():
     project_dump.loc[:, "Initial Capex"] = project_dump["Initial Capex"].map('${:,.0f}'.format)
 
     # renaming columns
-
     project_dump = project_dump.rename(columns={'OperatingTemp': 'Operating Temperature ('+degree_sign+'C)'})
     project_dump = project_dump.rename(columns={'Name': 'Project Name'})
     project_dump = project_dump.rename(columns={'StudyType': 'Study Type'})
@@ -683,7 +414,6 @@ def main():
     project_dump = project_dump.rename(columns={'Initial Capex': 'Initial Capital Cost (USD$)'})
 
     # data rounding, removing nans, and prepping df for streamlit write
-
     project_dump = project_dump.replace(0,  '')
     project_dump = project_dump.replace('$0',  '')
     project_dump = project_dump.replace('$nan',  '')
@@ -692,111 +422,110 @@ def main():
     project_dump = project_dump.astype(str)
 
     # aggregating payalbe metals column with ',' seperator
-
     project_dump = project_dump.groupby(['ID']).agg(lambda x: ' , '.join(list(set(list(x)))))
     project_dump = project_dump.sort_values(['ID'])
 
     # if metals criteria is used, filter for metal, along with rest of payable metals for that project. metal 1 OR metal 2 up to a maximum of 
     # 5 metals
 
+    if form_inputs['payable_metals'][0] != '':
+        if len(form_inputs['payable_metals']) == 1:
+            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0])]
 
-    if payablemetal_input[0] != '':
-        if len(payablemetal_input) == 1:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(payablemetal_input[0])]
+        elif len(form_inputs['payable_metals']) == 2:
+            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1])]
 
-        elif len(payablemetal_input) == 2:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(payablemetal_input[0]) |
-            project_dump['Payable Metal'].str.contains(payablemetal_input[1])]
+        elif len(form_inputs['payable_metals']) == 3:
+            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2])]
 
-        elif len(payablemetal_input) == 3:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(payablemetal_input[0]) |
-            project_dump['Payable Metal'].str.contains(payablemetal_input[1]) | project_dump['Payable Metal'].str.contains(payablemetal_input[2])]
+        elif len(form_inputs['payable_metals']) == 4:
+            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2]) |
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3])]    
 
-        elif len(payablemetal_input) == 4:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(payablemetal_input[0]) |
-            project_dump['Payable Metal'].str.contains(payablemetal_input[1]) | project_dump['Payable Metal'].str.contains(payablemetal_input[2]) |
-            project_dump['Payable Metal'].str.contains(payablemetal_input[3])]    
-
-        elif len(payablemetal_input) == 5:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(payablemetal_input[0]) |
-            project_dump['Payable Metal'].str.contains(payablemetal_input[1]) | project_dump['Payable Metal'].str.contains(payablemetal_input[2]) |
-            project_dump['Payable Metal'].str.contains(payablemetal_input[3]) | project_dump['Payable Metal'].str.contains(payablemetal_input[4])]   
+        elif len(form_inputs['payable_metals']) == 5:
+            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2]) |
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][4])]   
 
     # display query results
-
-    st.write('Temperature ('+degree_sign+'C) between' ,temp_range,'Pressure (kPa) between', press_range,'Throughput (t/a) between', ore_range,
-    'Sulphur Feed (%) between', sulph_range,'Total Reserves (Mt) between', resrv_range)
-
     st.write("""
         ## Filter Query
-
         ##### Based on above selections:
-
-
     """)
 
     #Column select for query
+    selectall_toggle = st.checkbox(label='Select all', value=True)
 
-    selectall_toggle = st.checkbox(label='Select all', value=False)
+    column_toggle = {
+        'Study Type':None,
+        'Operating Pressure (kPa)': None,
+        'Country': None,
+        'Operating Temperature ('+degree_sign+'C)':None,
+        'Continent': None,
+        'Feed Sulphur (%)': None,
+        'Payable Metal': None,
+        'Acid/Alkaline': None,
+        'Site Conditions': None,
+        'Ore Treatment Rate (t/a)': None,
+        'Process Type': None,
+        'Total Reserves (Mt)': None,
+        'No of Processing Years': None,
+        'Initial Capital Cost (USD$)': None,
+    }
 
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
     with col1:
-        studytype_column = st.checkbox(label='Study Type', value=selectall_toggle)
-        pressure_column = st.checkbox(label='Operating Pressure', value=selectall_toggle)
+        column_toggle['Study Type'] = st.checkbox(label='Study Type', value=selectall_toggle)
+        column_toggle['Operating Pressure (kPa)'] = st.checkbox(label='Operating Pressure', value=selectall_toggle)
     with col2:
-        country_column = st.checkbox(label='Country', value=selectall_toggle)
-        temp_column = st.checkbox(label='Operating Temperature', value=selectall_toggle)
+        column_toggle['Country'] = st.checkbox(label='Country', value=selectall_toggle)
+        column_toggle['Operating Temperature ('+degree_sign+'C)'] = st.checkbox(label='Operating Temperature', value=selectall_toggle)
     with col3:
-        continent_column =st.checkbox(label='Continent', value=selectall_toggle)
-        sulphur_column = st.checkbox(label='Feed Sulphur %', value=selectall_toggle)
+        column_toggle['Continent'] = st.checkbox(label='Continent', value=selectall_toggle)
+        column_toggle['Feed Sulphur (%)'] = st.checkbox(label='Feed Sulphur %', value=selectall_toggle)
     with col4:
-        metal_column = st.checkbox(label='Payable Metal', value=selectall_toggle)
-        acid_column = st.checkbox(label='Acid/Alkaline', value=selectall_toggle)
+        column_toggle['Payable Metal'] = st.checkbox(label='Payable Metal', value=selectall_toggle)
+        column_toggle['Acid/Alkaline'] = st.checkbox(label='Acid/Alkaline', value=selectall_toggle)
     with col5:
-        gbfield_column = st.checkbox(label='Site Conditions', value=selectall_toggle)
-        orerate_column = st.checkbox(label='Treatment Rate', value=selectall_toggle)
+        column_toggle['Site Conditions'] = st.checkbox(label='Site Conditions', value=selectall_toggle)
+        column_toggle['Ore Treatment Rate (t/a)'] = st.checkbox(label='Treatment Rate', value=selectall_toggle)
     with col6:
-        process_column = st.checkbox(label='Process Type', value=selectall_toggle)
-        reserves_column = st.checkbox(label='Total Reserves', value=selectall_toggle)
+        column_toggle['Process Type'] = st.checkbox(label='Process Type', value=selectall_toggle)
+        column_toggle['Total Reserves (Mt)'] = st.checkbox(label='Total Reserves', value=selectall_toggle)
     with col7:
-        yearsop_column = st.checkbox(label='Process Years', value=selectall_toggle)
-        capex_column = st.checkbox(label='Initial CAPEX', value=selectall_toggle)
+        column_toggle['No of Processing Years'] = st.checkbox(label='Process Years', value=selectall_toggle)
+        column_toggle['Initial Capital Cost (USD$)'] = st.checkbox(label='Initial CAPEX', value=selectall_toggle)
 
-    if studytype_column == False:
-        project_dump = project_dump.drop(columns='Study Type')
-    if pressure_column == False:
-        project_dump = project_dump.drop(columns='Operating Pressure (kPa)')
-    if country_column == False:
-        project_dump = project_dump.drop(columns='Country')
-    if temp_column == False:
-        project_dump = project_dump.drop(columns='Operating Temperature ('+degree_sign+'C)')
-    if continent_column == False:
-        project_dump = project_dump.drop(columns='Continent')
-    if sulphur_column == False:
-        project_dump = project_dump.drop(columns='Feed Sulphur (%)')
-    if metal_column == False:
-        project_dump = project_dump.drop(columns='Payable Metal')
-    if acid_column == False:
-        project_dump = project_dump.drop(columns='Acid/Alkaline')
-    if gbfield_column == False:
-        project_dump = project_dump.drop(columns='Site Conditions')
-    if orerate_column == False:
-        project_dump = project_dump.drop(columns='Ore Treatment Rate (t/a)')
-    if process_column == False:
-        project_dump = project_dump.drop(columns='Process Type')
-    if yearsop_column == False:
-        project_dump = project_dump.drop(columns='No of Processing Years')
-    if reserves_column == False:
-        project_dump = project_dump.drop(columns='Total Reserves (Mt)')
-    if capex_column == False:
-        project_dump = project_dump.drop(columns='Initial Capital Cost (USD$)')
+    # drop columns toggle
+    for toggle in column_toggle:
+        if column_toggle[toggle] == False:
+            project_dump = project_dump.drop(columns=toggle)
 
+    # criteria display table creation
+    criteria_display_type = []
+    criteria_display_value = []
+
+    for slider in slider_inputs.keys():
+        if slider_inputs[slider]['data'] != (None,None):
+            criteria_display_type.append(slider_properties[slider]['description'])
+            criteria_display_value.append('{0:,}'.format(slider_inputs[slider]['data'][0]) + ' - ' + '{0:,}'.format(slider_inputs[slider]['data'][1]))
+        
+    criteria_display = pd.DataFrame(list(zip(criteria_display_type, criteria_display_value)), columns= ['Criteria', 'Value']).style.hide_index()
+
+    # function to display table with formatting
+    if criteria_display_value:
+        df_print_noindex(criteria_display, type='Table')
+
+    # Display Filter Query
     st._legacy_dataframe(project_dump, width=50000, height=700)
 
     # download csv of results
-
-    """
+    def convert_df(df):
+        """
         Author: Ali Kufaishi
         Date: 7/20/2022
         Revision: 0.0.1
@@ -809,8 +538,8 @@ def main():
             output_csv - csv object - output dataframe converted to csv
         Exceptions:
             N/A
-    """
-    def convert_df(df):
+        """
+    
         output_csv = df.to_csv().encode('utf-8')
         return output_csv
 
@@ -825,13 +554,16 @@ def main():
     )
 
     # close cursor
-
     cursor.close()
 
+if "user" not in st.session_state:
+    st.session_state.user = False
+
+if "dev" not in st.session_state:
+    st.session_state.dev = False
 
 # Authentication
 if st.session_state.user or st.session_state.dev:
     main()
 else:
-    st.write("Please enter a valid password")
     password_manager(cursor)

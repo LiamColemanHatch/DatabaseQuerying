@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 
-def password_manager(cursor):
+def password_manager(cursor, clearance='user'):
     sql_pullpass = """
     SELECT [Location], [Password]
     FROM [ProjectDetailDatabase].[dbo].[Passbook]
@@ -54,13 +54,22 @@ def password_manager(cursor):
 
     login_blocks = generate_login_block()
     password = login(login_blocks)
-
+    
     if password == devpass:
         st.session_state.dev = True
+        st.experimental_rerun()
     elif password == userpass:
-        st.write("You did not enter the dev password")
-        st.session_state.user = True
+        if clearance == 'dev':
+            st.error("You did not enter the dev password")
+        elif clearance == 'user':
+            st.session_state.user = True
+            st.experimental_rerun()
+        else:
+            st.warning
+        
     elif password == "":
-        st.write("Please enter a password")
+        st.write("Please enter a password")    
     else:
-        st.write("You did not enter a valid password")
+        st.error("You did not enter a valid password")
+
+    

@@ -114,4 +114,4 @@ if st.session_state.dev:
     main2()
 else:
     st.write("#### Please enter the Dev Password to access the settings page")
-    password_manager(cursor)
+    password_manager(cursor, clearance='dev')

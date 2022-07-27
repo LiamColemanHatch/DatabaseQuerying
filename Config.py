@@ -1,4 +1,6 @@
 import pyodbc
+import streamlit as st
+import pandas as pd
 
 def Database_Connection():
     """
@@ -37,3 +39,33 @@ def Database_Connection():
     cursor: pyodbc.Cursor = cnxn.cursor()
     return cursor,cnxn
 
+def df_print_noindex(df, type):
+    """
+        Author: Ali Kufaishi
+        Date: 7/25/2022
+        Revision: 0.0.1
+        Reviewer: N/A
+        Review Date: N/A
+        Intent: Display dataframe in streamlit in form of table or streamlit dataframe
+        Inputs: 
+            df - Pandas Dataframe - output dataframe,
+            type - either 'Table' or 'Dataframe'
+        Returns:
+            N/A
+        Exceptions:
+            N/A
+    """
+    hide_table_row_index = """
+            <style>
+            .row_heading.level0 {display:none}
+            .blank {display:none}
+            </style>
+            """
+    st.markdown(hide_table_row_index, unsafe_allow_html=True)
+    if type == 'Table':
+        st.table(df)
+    if type == 'Dataframe':
+        st.markdown(hide_table_row_index, unsafe_allow_html=True)
+        st._legacy_dataframe(df, width=50000, height=700)
+
+    
