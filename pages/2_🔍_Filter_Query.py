@@ -1,4 +1,4 @@
-from ast import Bytes
+
 from openpyxl import Workbook
 import pandas as pd
 import streamlit as st
@@ -34,7 +34,7 @@ def main():
         'site_conditions': None,
         'POX_type': None,
     }
-    
+
     # different SQL queries required for filter query dropdowns and sql_filterquery
     dropdown_queries = {
         'singleTableLookup': """
@@ -98,7 +98,7 @@ def main():
     }
 
     # looping through dropdowm menus and creating their respective data sources
-    for dropdown_menu_name in dropdown_order.keys():
+    for dropdown_menu_name in dropdown_order:
         query_string = dropdown_queries['singleTableLookup'].format(dropdown_queries[dropdown_menu_name]['table'],
         dropdown_queries[dropdown_menu_name]['column'],
         dropdown_queries[dropdown_menu_name]['table'])
@@ -130,7 +130,7 @@ def main():
     }
 
     # creating dropdowns for each input type, multi vs. single is determine by the given dropdown and it's tag in dropdown queries
-    for input_type in form_inputs.keys():
+    for input_type in form_inputs:
         if dropdown_queries[input_type]['selectype'] == 'multi':
             form_inputs[input_type] = st.multiselect(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type])
         if dropdown_queries[input_type]['selectype'] == 'single':
@@ -138,7 +138,7 @@ def main():
 
     # initializing input lists for manipulation: ensuring all form inputs are of same type and initiallizing lists
     # if no input it provided
-    for input_type in form_inputs.keys():
+    for input_type in form_inputs:
         if isinstance(form_inputs[input_type], str):
             form_inputs[input_type] = [form_inputs[input_type]]
         if not form_inputs[input_type]:
@@ -190,9 +190,9 @@ def main():
         'throughput': {
             'description': 'Ore Throughput Rate (t/a)',
             'help': 'Total circuit throughput',
-            'range': [0,8000000],
-            'default': [200000,1000000],
-            'step': 100000,
+            'range': [0,80000000],
+            'default': [200000,10000000],
+            'step': 1000000,
             'units': 't/a',
             'disabled': True
         },
@@ -217,7 +217,7 @@ def main():
     }
 
     # displaying sliders and their associated checkboxes
-    for slider in slider_data.keys():
+    for slider in slider_data:
         checkbox = st.checkbox(label=slider_properties[slider]['description'], help=slider_properties[slider]['help'], key=slider)
         if checkbox:
             slider_properties[slider]['disabled'] = False
@@ -245,7 +245,6 @@ def main():
             for i in range(len(form_inputs[input])):
                 rangeparams.append(form_inputs[input][i])
                 rangeparams.append(f"%{form_inputs[input][i]}%")
-                st.write(input)
 
     # append slider data to callable parameters list for querying
 
@@ -303,14 +302,14 @@ def main():
         'process_types': None,
         'site_conditions': None,
         'POX_type': None,
-    }    
+    }
     # generates sql code to add to base query. Based on entries to the form, will adjust for number of inputs by adding more sql criteria. sql stored in sql input
     for type in sql_input:
         if type == 'POX_type':
             if form_inputs[type][0] == '':
                 sql_input[type] = """"""
             else:
-                sql_input[type] = "AND" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],  
+                sql_input[type] = "AND" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],
                 dropdown_queries[type]['table'], dropdown_queries[type]['column'])
         elif type == 'study_types':
             if form_inputs[type][0] == '':
@@ -327,14 +326,14 @@ def main():
             else:
                 sql_input[type] = "AND"
 
-            sql_input[type] += "(" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],  
+            sql_input[type] += "(" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],
             dropdown_queries[type]['table'], dropdown_queries[type]['column'])
 
             for i in range(len(form_inputs[type])-1):
-                sql_input[type] += "OR" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],  
+                sql_input[type] += "OR" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],
                 dropdown_queries[type]['table'], dropdown_queries[type]['column'])
             sql_input[type] += ")"
-                    
+
     sql_filterquery = """
     SELECT DISTINCT [Project].[ID],
         [Project].Name,
@@ -353,7 +352,7 @@ def main():
         [Project].TotalReserves,
         [ProjectFinancials].[Initial Capex],
         [Project].[Date of information]
-        
+
     FROM (((([ProjectDetailDatabase].[dbo].[Project]
         LEFT JOIN [ProjectDetailDatabase].[dbo].[ProjectPayableMetals] ON [Project].[ID] = [ProjectPayableMetals].[ID(Projects)])
         LEFT JOIN [ProjectDetailDatabase].[dbo].[PayableMetals] ON [ProjectPayableMetals].[ID(Products)] = [PayableMetals].[ID])
@@ -361,7 +360,7 @@ def main():
         LEFT JOIN [ProjectDetailDatabase].[dbo].[ProjectFinancials] ON [Project].[ID] = [ProjectFinancials].[ID(Projects)])
         LEFT JOIN [ProjectDetailDatabase].[dbo].[PayingMetal] ON Project.ID = [PayingMetal].[ID(Proj)]
 
-    """ 
+    """
     for type in sql_input:
         sql_filterquery += sql_input[type]
 
@@ -371,7 +370,6 @@ def main():
     # execute query to records with called variables
     records = cursor.execute(sql_filterquery,rangeparams).fetchall()
 
-    
     # define record column names
     columns = [column[0] for column in cursor.description]
 
@@ -380,7 +378,6 @@ def main():
         data=records,
         columns=columns,
     )
-    project_dump.name = 'Output Query'
 
     # setting database index as dataframe index
     project_dump.set_index(['ID'], inplace=True)
@@ -427,7 +424,7 @@ def main():
     project_dump = project_dump.groupby(['ID']).agg(lambda x: ' , '.join(list(set(list(x)))))
     project_dump = project_dump.sort_values(['ID'])
 
-    # if metals criteria is used, filter for metal, along with rest of payable metals for that project. metal 1 OR metal 2 up to a maximum of 
+    # if metals criteria is used, filter for metal, along with rest of payable metals for that project. metal 1 OR metal 2 up to a maximum of
     # 5 metals
     if form_inputs['payable_metals'][0] != '':
         if len(form_inputs['payable_metals']) == 1:
@@ -444,12 +441,12 @@ def main():
         elif len(form_inputs['payable_metals']) == 4:
             project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
             project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3])]    
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3])]
 
         elif len(form_inputs['payable_metals']) == 5:
             project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
             project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][4])]   
+            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][4])]
 
     # display query results
     st.write("""
@@ -510,11 +507,23 @@ def main():
     criteria_display_type = []
     criteria_display_value = []
 
-    for slider in slider_data.keys():
+    for type in form_inputs:
+        if form_inputs[type] != ['']:
+            criteria_display_type.append(dropdown_queries[type]['label'])
+            value_list = ''
+            for i in range(len(form_inputs[type])):
+                if i == 0:
+                    value_list += ''
+                else:
+                    value_list += ' or '
+                value_list += str(form_inputs[type][i])
+            criteria_display_value.append(value_list)
+
+    for slider in slider_data:
         if slider_data[slider]['data'] != (None,None):
             criteria_display_type.append(slider_properties[slider]['description'])
             criteria_display_value.append('{0:,}'.format(slider_data[slider]['data'][0]) + ' - ' + '{0:,}'.format(slider_data[slider]['data'][1]))
-        
+
     criteria_display = pd.DataFrame(list(zip(criteria_display_type, criteria_display_value)), columns= ['Criteria', 'Value'])
     criteria_display.name = 'Query Filter'
 
@@ -525,63 +534,132 @@ def main():
     # display Filter Query
     st._legacy_dataframe(project_dump, width=50000, height=700)
 
-    # download csv of results
-    def convert_df(df):
-        """
-        Author: Ali Kufaishi
-        Date: 7/20/2022
-        Revision: 0.0.1
-        Reviewer: Liam Coleman
-        Review Date: 7/20/2022
-        Intent: Convert dataframes to csv and return csv as object
-        Inputs: 
-            df - Pandas Dataframe - output dataframe
-        Returns:
-            output_csv - csv object - output dataframe converted to csv
-        Exceptions:
-            N/A
-        """
+    if 'dfs' not in st.session_state:
+        st.session_state.dfs = {}
+        for i in range(10):
+            st.session_state.dfs[i] = {'TLabel': None, 'Filter': pd.DataFrame({}), 'Query':pd.DataFrame({})}
     
-        output_csv = df.to_csv().encode('utf-8')
-        return output_csv
+    tlabel = st.text_input(label="Enter Query Name")
 
+    col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
+
+    
+    if st.button(label='Cache Query', help='Use this button to store multiple queries for later download.'):
+        if tlabel == '':
+            st.warning("Please Enter Query Name")
+        else:
+            for i in range(10):
+                if  st.session_state.dfs[i]['Query'].empty:
+                    st.session_state.dfs[i]['Filter'] = criteria_display
+                    st.session_state.dfs[i]['Query'] = project_dump
+                    st.session_state.dfs[i]['TLabel'] = tlabel
+                    break
+                elif st.session_state.dfs[i]['Query'].equals(project_dump):
+                    st.warning('This query is already in the cache.')
+                    break
+    # with col2:
+    #     cacheclear_trigger = st.button('Clear Cache')
+
+    # if cacheclear_trigger == True:
+    #     st.warning('This will clear all saved queries from cache')
+    #     if st.button('Confirm'):
+    #         for i in range(len(st.session_state.dfs)):
+    #             st.session_state.dfs[i]['Filter'] = pd.DataFrame({})
+    #             st.session_state.dfs[i]['Query'] = pd.DataFrame({})
+    #             st.session_state.dfs[i]['TLabel'] = None
+    #         st.experimental_rerun()
+    #     st.button('Cancel')
+
+    st.write(st.session_state.dfs[0])
+
+    cached_queries = []
+    for queries in st.session_state.dfs:
+        if st.session_state.dfs[queries]['TLabel']:
+            cached_queries.append(st.session_state.dfs[queries]['TLabel'])
+
+    cache_update = st.multiselect(label='Cached Queries:', default=cached_queries, options=cached_queries, help='Press on the x of the queries to \
+        clear them from cache.')
+
+    if cache_update != cached_queries:
+        set(cached_queries)
+        set(cache_update)
+        dropped_queries = list(set(cached_queries).difference(cache_update))
+        st.write(dropped_queries)
+        for queries in st.session_state.dfs:
+            if st.session_state.dfs[queries]['TLabel']:
+                for i in range(len(dropped_queries)):
+                    if st.session_state.dfs[queries]['TLabel'] == dropped_queries[i]:
+                        st.session_state.dfs[queries]['Filter'] = pd.DataFrame({})
+                        st.session_state.dfs[queries]['Query'] = pd.DataFrame({})
+                        st.session_state.dfs[queries]['TLabel'] = None
+        st.experimental_rerun()
+
+    processed_data = output_excel(st.session_state.dfs)
+
+    # download button for query output
+    st.download_button(
+    label="Download Query/Queries",
+    data=processed_data,
+    file_name= 'FilteredDatabaseQuery.xlsx',
+    key='download-excel'
+    )
+
+    # close cursor
+    cursor.close()
+
+def output_excel(df_dict):
+    """
+    Author: Ali Kufaishi
+    Date: 7/27/2022
+    Revision: 0.0.1
+    Reviewer: N/A
+    Review Date: N/A
+    Intent: Convert dataframes to xlsx with proper formatting and return xlsx as object
+    Inputs:
+        df - Pandas Dataframe - output dataframe
+    Returns:
+        processed_data - xlsx object - output dataframes converted to xlsx
+    Exceptions:
+        N/A
+    """
+    # creating and preparing excel object for download
+
+    # creating excel pointers
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
     worksheet = workbook.add_worksheet('Result')
     writer.sheets['Result'] = worksheet
-    worksheet.write_string(0, 0, 'Query Filter')
 
-    criteria_display.to_excel(writer, sheet_name='Result', startrow=1, startcol=0)
-    worksheet.write_string(criteria_display.shape[0] + 4, 0, 'Query Output')
-    project_dump.to_excel(writer, sheet_name ='Result', startrow=criteria_display.shape[0] + 5, startcol=0)
-    
-    for column in project_dump:
-        column_length = max(project_dump[column].astype(str).map(len).max(), len(column))
-        col_idx = project_dump.columns.get_loc(column)+1
-        worksheet.set_column(col_idx, col_idx, column_length)
-    
-    if not criteria_display.empty:
-        for column in criteria_display:
-            column_length = max(criteria_display[column].astype(str).map(len).max(), len(column))
-            col_idx = criteria_display.columns.get_loc(column)+1
-            worksheet.set_column(col_idx, col_idx, column_length)
-            
+    # writing dfs to excel
+    startrow = 0
 
+    for entry in df_dict:
+        if not df_dict[entry]['Query'].empty:
+            filter_df = df_dict[entry]['Filter']
+            query_df = df_dict[entry]['Query']
+            filter_label = df_dict[entry]['TLabel'] + 'Filter'
+            query_label = df_dict[entry]['TLabel'] + 'Query'
+
+            worksheet.write_string(startrow, 0, filter_label)
+            filter_df.to_excel(writer, sheet_name='Result', startrow=startrow+1, startcol=0)
+            worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
+            query_df.to_excel(writer, sheet_name ='Result', startrow=startrow + filter_df.shape[0] + 5, startcol=0)
+
+            def col_autowidth(df, worksheet):
+                for column in df:
+                    column_length = max(df[column].astype(str).map(len).max(), len(column))
+                    col_idx = df.columns.get_loc(column)+1
+                    worksheet.set_column(col_idx, col_idx, column_length)
+
+            col_autowidth(query_df, worksheet)
+
+            if not filter_df.empty:
+                    col_autowidth(filter_df, worksheet)
+            startrow += filter_df.shape[0] + query_df.shape[0] + 10
     writer.save()
-    processed_data = output.getvalue()
-
-    csv = convert_df(project_dump)
-
-    st.download_button(
-    label="Download",
-    data=processed_data,
-    file_name= 'FilteredDatabaseQuery.xlsx',
-    key='download-excel'
-        )
-
-    # close cursor
-    cursor.close()
+    processed_data = output.getvalue()        
+    return processed_data
 
 if "user" not in st.session_state:
     st.session_state.user = False
