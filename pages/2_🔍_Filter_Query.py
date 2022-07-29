@@ -543,7 +543,7 @@ def main():
 
     col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
 
-    
+    # button to cache current filter-query pair
     if st.button(label='Cache Query', help='Use this button to store multiple queries for later download.'):
         if tlabel == '':
             st.warning("Please Enter Query Name")
@@ -557,29 +557,18 @@ def main():
                 elif st.session_state.dfs[i]['Query'].equals(project_dump):
                     st.warning('This query is already in the cache.')
                     break
-    # with col2:
-    #     cacheclear_trigger = st.button('Clear Cache')
-
-    # if cacheclear_trigger == True:
-    #     st.warning('This will clear all saved queries from cache')
-    #     if st.button('Confirm'):
-    #         for i in range(len(st.session_state.dfs)):
-    #             st.session_state.dfs[i]['Filter'] = pd.DataFrame({})
-    #             st.session_state.dfs[i]['Query'] = pd.DataFrame({})
-    #             st.session_state.dfs[i]['TLabel'] = None
-    #         st.experimental_rerun()
-    #     st.button('Cancel')
-
-    st.write(st.session_state.dfs[0])
-
+    
+    # list for the cache list
     cached_queries = []
     for queries in st.session_state.dfs:
         if st.session_state.dfs[queries]['TLabel']:
             cached_queries.append(st.session_state.dfs[queries]['TLabel'])
 
+    # display of cached queries. removing elements from the list will remove the query-filter pair from the df_dict
     cache_update = st.multiselect(label='Cached Queries:', default=cached_queries, options=cached_queries, help='Press on the x of the queries to \
         clear them from cache.')
 
+    # checking whether element has been removed from the list. Then removing from list.
     if cache_update != cached_queries:
         set(cached_queries)
         set(cache_update)
@@ -594,6 +583,7 @@ def main():
                         st.session_state.dfs[queries]['TLabel'] = None
         st.experimental_rerun()
 
+    # processing cached filter-query pair into xlsx object
     processed_data = output_excel(st.session_state.dfs)
 
     # download button for query output
@@ -616,7 +606,7 @@ def output_excel(df_dict):
     Review Date: N/A
     Intent: Convert dataframes to xlsx with proper formatting and return xlsx as object
     Inputs:
-        df - Pandas Dataframe - output dataframe
+        df_dict - Dictionary - cached filter and query dataframes stored in a dictionary
     Returns:
         processed_data - xlsx object - output dataframes converted to xlsx
     Exceptions:
