@@ -142,6 +142,7 @@ def filter_query():
         'POX_type': None,
     }
 
+
     # creating dropdowns for each input type, multi vs. single is determine by the given dropdown and it's tag in dropdown queries
     for input_type in form_inputs:
         if dropdown_queries[input_type]['selectype'] == 'multi':
