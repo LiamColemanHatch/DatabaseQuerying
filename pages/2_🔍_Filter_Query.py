@@ -132,14 +132,14 @@ def filter_query():
     }
 
     exclusive_inputs_toggle = {
-    'projects': None,
-    'countries': None,
-    'continents': None,
-    'study_types': None,
-    'process_types': None,
-    'payable_metals': None,
-    'site_conditions': None,
-    'POX_type': None,
+        'projects': None,
+        'countries': None,
+        'continents': None,
+        'study_types': None,
+        'process_types': None,
+        'payable_metals': None,
+        'site_conditions': None,
+        'POX_type': None,
     }
 
     # creating dropdowns for each input type, multi vs. single is determine by the given dropdown and it's tag in dropdown queries
@@ -154,7 +154,7 @@ def filter_query():
                 st.write('')
                 st.write('')
                 st.write('')
-                exclusive_inputs_toggle = st.checkbox(label='Exclusive')
+                exclusive_inputs_toggle[input_type] = st.checkbox(label='Exclusive')
         elif dropdown_queries[input_type]['selectype'] == 'single':
             form_inputs[input_type] = st.selectbox(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type], index=0)
 
