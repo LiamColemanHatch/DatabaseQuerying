@@ -86,17 +86,21 @@ def main2():
     if 'submit_button' not in st.session_state:
         st.session_state.submit_button = False
 
-    if 'newpass' not in st.session_state:
+    if 'old_pass' not in st.session_state:
+        st.session_state.old_pass = False    
+
+    if 'new_pass' not in st.session_state:
         st.session_state.newpass = False
 
-    if 'confirmpass' not in st.session_state:
+    if 'confirm_pass' not in st.session_state:
         st.session_state.confirmpass = True  
 
-    st.session_state.newpass = st.text_input("New Password")
-    st.session_state.confirmpass = st.text_input("Confirm Password")  
+    st.session_state.old_pass = st.text_input("Old Password", type="password")
+    st.session_state.newpass = st.text_input("New Password", type="password")
+    st.session_state.confirmpass = st.text_input("Confirm Password", type="password")  
 
     if st.button('Submit'):
-        if st.session_state.newpass == st.session_state.confirmpass and  len(st.session_state.newpass) >= 8: 
+        if st.session_state.newpass == st.session_state.confirmpass and len(st.session_state.newpass) >= 8 and st.session_state.old_pass == userpass: 
             cursor.execute(sql_newuserpass, st.session_state.newpass)
             cnxn.commit()
             st.success('Password Succesfully Changed!')
@@ -104,6 +108,8 @@ def main2():
             st.info('Passwords do not match.')
         elif len(st.session_state.newpass) < 8:
             st.info('Password must be greater than 8 characters long.')
+        elif st.session_state.old_pass != userpass:
+            st.warning('Incorrect Old Password')
         
 
     cursor.close()

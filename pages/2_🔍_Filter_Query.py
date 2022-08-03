@@ -9,6 +9,7 @@ from io import BytesIO
 from Config import Database_Connection
 from Config import df_print_noindex
 from login import password_manager
+from UliPlot.XLSX import auto_adjust_xlsx_column_width
 
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
@@ -19,7 +20,7 @@ st.set_page_config(layout="wide")
 # instantiative the database connection and creating necessary object to interact with the database
 cursor,cnxn = Database_Connection()
 
-def main():
+def filter_query():
 
     # create datasource for dropdowns in the filter form
 
@@ -35,7 +36,8 @@ def main():
         'POX_type': None,
     }
 
-    # different SQL queries required for filter query dropdowns and sql_filterquery
+    # different SQL queries required for filter query dropdowns and sql_filterquery. selecttypes must be either 'single', 'multi', or 'exclusive'.
+    # exclusive tag on select type will generate an "exclusive" button and query the as an exclusive criteria (CURRENTLY ONLY FOR PAYABLE METAL)
     dropdown_queries = {
         'singleTableLookup': """
             SELECT DISTINCT [ProjectDetailDatabase].[dbo].{}.{}
@@ -81,19 +83,19 @@ def main():
             'table': '[PayableMetals]',
             'column': '[name]',
             'label': 'Payable Metal',
-            'selectype': 'multi'
+            'selectype': 'exclusive'
         },
         'site_conditions': {
             'table': '[Project]',
             'column': '[SiteConditions]',
             'label': 'Site Conditions',
-            'selectype': 'single'
+            'selectype': 'multi'
         },
         'POX_type': {
             'table': '[Autoclave]',
             'column': '[Acid/Alkaline]',
             'label': 'POX Type',
-            'selectype': 'single'
+            'selectype': 'multi'
         }
     }
 
@@ -129,11 +131,31 @@ def main():
         'POX_type': None,
     }
 
+    exclusive_inputs_toggle = {
+    'projects': None,
+    'countries': None,
+    'continents': None,
+    'study_types': None,
+    'process_types': None,
+    'payable_metals': None,
+    'site_conditions': None,
+    'POX_type': None,
+    }
+
     # creating dropdowns for each input type, multi vs. single is determine by the given dropdown and it's tag in dropdown queries
     for input_type in form_inputs:
         if dropdown_queries[input_type]['selectype'] == 'multi':
             form_inputs[input_type] = st.multiselect(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type])
-        if dropdown_queries[input_type]['selectype'] == 'single':
+        elif dropdown_queries[input_type]['selectype'] == 'exclusive':
+            col1, col2 = st.columns((13, 1))
+            with col1:
+                form_inputs[input_type] = st.multiselect(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type])
+            with col2:
+                st.write('')
+                st.write('')
+                st.write('')
+                exclusive_inputs_toggle = st.checkbox(label='Exclusive')
+        elif dropdown_queries[input_type]['selectype'] == 'single':
             form_inputs[input_type] = st.selectbox(label=dropdown_queries[input_type]['label'], options=dropdown_order[input_type], index=0)
 
     # initializing input lists for manipulation: ensuring all form inputs are of same type and initiallizing lists
@@ -166,6 +188,10 @@ def main():
             'data':None,
             'sql': None
         },
+        'capex':{
+            'data':None,
+            'sql': None
+        }
     }
 
     slider_properties = {
@@ -214,6 +240,15 @@ def main():
             'units': 'Mt',
             'disabled': True
         },
+        'capex': {
+            'description': 'Initial Capital Cost ($USD)',
+            'help': None,
+            'range': [0,10000000000],
+            'default': [500000000,2000000000],
+            'step': 200000000,
+            'units': '$USD',
+            'disabled': True
+        }
     }
 
     # displaying sliders and their associated checkboxes
@@ -282,12 +317,17 @@ def main():
             'table': '[Project]',
             'column': '[TotalReserves]',
             'label': 'Total Reserves (Mt)'
+        },
+        'capex': {
+            'table': '[ProjectFinancials]',
+            'column': '[Initial Capex]',
+            'label': 'Initial Capital Cost ($USD)'
         }
     }
 
     for slider in slider_data:
         if slider_properties[slider]['disabled']:
-            slider_data[slider]['sql'] = """"""
+            slider_data[slider]['sql'] = ""
         else:
             slider_data[slider]['sql'] = slider_queries['genericrangequery'].format(slider_queries[slider]['table'], \
             slider_queries[slider]['column'])
@@ -305,15 +345,10 @@ def main():
     }
     # generates sql code to add to base query. Based on entries to the form, will adjust for number of inputs by adding more sql criteria. sql stored in sql input
     for type in sql_input:
-        if type == 'POX_type':
+
+        if type == 'study_types':
             if form_inputs[type][0] == '':
-                sql_input[type] = """"""
-            else:
-                sql_input[type] = "AND" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],
-                dropdown_queries[type]['table'], dropdown_queries[type]['column'])
-        elif type == 'study_types':
-            if form_inputs[type][0] == '':
-                sql_input[type] = """"""
+                sql_input[type] = ""
             else:
                 sql_input[type] = "AND" + "(" + dropdown_queries['sqlexact'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'])
 
@@ -325,6 +360,10 @@ def main():
                 sql_input[type] = "WHERE"
             else:
                 sql_input[type] = "AND"
+            if type == 'POX_type':
+                if form_inputs[type][0] == '':
+                    sql_input[type] = ""
+                    break
 
             sql_input[type] += "(" + dropdown_queries['sqlgeneral'].format(dropdown_queries[type]['table'], dropdown_queries[type]['column'],
             dropdown_queries[type]['table'], dropdown_queries[type]['column'])
@@ -361,9 +400,12 @@ def main():
         LEFT JOIN [ProjectDetailDatabase].[dbo].[PayingMetal] ON Project.ID = [PayingMetal].[ID(Proj)]
 
     """
+
+    # SQL addition for form inputs
     for type in sql_input:
         sql_filterquery += sql_input[type]
-
+  
+    # SQL addition for slider inputs
     for slider in slider_data:
         sql_filterquery += slider_data[slider]['sql']
 
@@ -389,13 +431,13 @@ def main():
         'OperatingPressure': None,
         'OperatingTemp': None,
         'OreTreatmentRate': None,
+        'TotalReserves': None,
         'Initial Capex': None
     }
 
     for type in decimal_removal:
         project_dump = project_dump.fillna({type: 0})
-        if type != 'Initial Capex':
-            project_dump = project_dump.astype({type: int})
+        project_dump = project_dump.astype({type: np.int64})
 
     # adding thousands seperators to columns
     project_dump.loc[:, "OreTreatmentRate"] = project_dump["OreTreatmentRate"].map('{:,.0f}'.format)
@@ -416,7 +458,6 @@ def main():
     project_dump = project_dump.replace(0,  '')
     project_dump = project_dump.replace('$0',  '')
     project_dump = project_dump.replace('$nan',  '')
-    project_dump = project_dump.round({'TotalReserves': 0})
     project_dump = project_dump.fillna('')
     project_dump = project_dump.astype(str)
 
@@ -424,29 +465,27 @@ def main():
     project_dump = project_dump.groupby(['ID']).agg(lambda x: ' , '.join(list(set(list(x)))))
     project_dump = project_dump.sort_values(['ID'])
 
-    # if metals criteria is used, filter for metal, along with rest of payable metals for that project. metal 1 OR metal 2 up to a maximum of
-    # 5 metals
-    if form_inputs['payable_metals'][0] != '':
-        if len(form_inputs['payable_metals']) == 1:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0])]
+    # if metals criteria is used, filter for metal, along with rest of payable metals for that project.
 
-        elif len(form_inputs['payable_metals']) == 2:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1])]
+    # if exclusive button is toggled, exclusive metal criteria used, else inclusive metal search
+    if exclusive_inputs_toggle:
+        dropped_metals = dropdown_order['payable_metals'][0].values.tolist()
+        dropped_metals.remove('')
 
-        elif len(form_inputs['payable_metals']) == 3:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2])]
-
-        elif len(form_inputs['payable_metals']) == 4:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3])]
-
-        elif len(form_inputs['payable_metals']) == 5:
-            project_dump = project_dump[project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][0]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][1]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][2]) |
-            project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][3]) | project_dump['Payable Metal'].str.contains(form_inputs['payable_metals'][4])]
+        if form_inputs['payable_metals'][0] != '':
+            project_dump = project_dump[project_dump['Payable Metal'] != '']  
+            for metal in form_inputs['payable_metals']:
+                dropped_metals.remove(metal)
+            for metal in dropped_metals:
+                project_dump = project_dump[project_dump['Payable Metal'].str.contains(metal)==False]    
+    else:
+        if form_inputs['payable_metals'][0] != '':
+            for x, metal in enumerate(form_inputs['payable_metals']):
+                if x == 0:
+                    query = project_dump['Payable Metal'].str.contains(metal)
+                else:
+                    query = query | project_dump['Payable Metal'].str.contains(metal)
+            project_dump = project_dump[query]
 
     # display query results
     st.write("""
@@ -525,7 +564,7 @@ def main():
             criteria_display_value.append('{0:,}'.format(slider_data[slider]['data'][0]) + ' - ' + '{0:,}'.format(slider_data[slider]['data'][1]))
 
     criteria_display = pd.DataFrame(list(zip(criteria_display_type, criteria_display_value)), columns= ['Criteria', 'Value'])
-    criteria_display.name = 'Query Filter'
+
 
     # function to display table with formatting
     if criteria_display_value:
@@ -539,14 +578,15 @@ def main():
         for i in range(10):
             st.session_state.dfs[i] = {'TLabel': None, 'Filter': pd.DataFrame({}), 'Query':pd.DataFrame({})}
     
-    tlabel = st.text_input(label="Enter Query Name")
-
-    col1, col2, col3, col4, col5, col6, col7, col8, col9 = st.columns(9)
+    with st.sidebar:
+        tlabel = st.text_input(label="Enter Query Name")
+        cache_trigger = st.button(label='Cache Query', help='Use this button to store multiple queries for later download.')
 
     # button to cache current filter-query pair
-    if st.button(label='Cache Query', help='Use this button to store multiple queries for later download.'):
+    if cache_trigger:
         if tlabel == '':
-            st.warning("Please Enter Query Name")
+            with st.sidebar:
+                st.warning("Please Enter Query Name")
         else:
             for i in range(10):
                 if  st.session_state.dfs[i]['Query'].empty:
@@ -555,7 +595,11 @@ def main():
                     st.session_state.dfs[i]['TLabel'] = tlabel
                     break
                 elif st.session_state.dfs[i]['Query'].equals(project_dump):
-                    st.warning('This query is already in the cache.')
+                    with st.sidebar:
+                        st.warning('This query is already in the cache.')
+                elif st.session_state.dfs[i]['TLabel'] == tlabel:
+                    with st.sidebar:
+                        st.warning('This name is already being used to label another query in the cache')
                     break
     
     # list for the cache list
@@ -565,15 +609,15 @@ def main():
             cached_queries.append(st.session_state.dfs[queries]['TLabel'])
 
     # display of cached queries. removing elements from the list will remove the query-filter pair from the df_dict
-    cache_update = st.multiselect(label='Cached Queries:', default=cached_queries, options=cached_queries, help='Press on the x of the queries to \
-        clear them from cache.')
+    with st.sidebar:
+        cache_update = st.multiselect(label='Cached Queries:', default=cached_queries, options=cached_queries, help='Press on the x of the queries to \
+            clear them from cache.')
 
     # checking whether element has been removed from the list. Then removing from list.
     if cache_update != cached_queries:
         set(cached_queries)
         set(cache_update)
         dropped_queries = list(set(cached_queries).difference(cache_update))
-        st.write(dropped_queries)
         for queries in st.session_state.dfs:
             if st.session_state.dfs[queries]['TLabel']:
                 for i in range(len(dropped_queries)):
@@ -581,14 +625,13 @@ def main():
                         st.session_state.dfs[queries]['Filter'] = pd.DataFrame({})
                         st.session_state.dfs[queries]['Query'] = pd.DataFrame({})
                         st.session_state.dfs[queries]['TLabel'] = None
-        st.experimental_rerun()
 
     # processing cached filter-query pair into xlsx object
     processed_data = output_excel(st.session_state.dfs)
 
     # download button for query output
     st.download_button(
-    label="Download Query/Queries",
+    label="Download Query Results",
     data=processed_data,
     file_name= 'FilteredDatabaseQuery.xlsx',
     key='download-excel'
@@ -618,35 +661,24 @@ def output_excel(df_dict):
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
-    worksheet = workbook.add_worksheet('Result')
-    writer.sheets['Result'] = worksheet
 
     # writing dfs to excel
-    startrow = 0
-
     for entry in df_dict:
         if not df_dict[entry]['Query'].empty:
             filter_df = df_dict[entry]['Filter']
             query_df = df_dict[entry]['Query']
-            filter_label = df_dict[entry]['TLabel'] + 'Filter'
-            query_label = df_dict[entry]['TLabel'] + 'Query'
+            filter_label = df_dict[entry]['TLabel'] + ' Filter'
+            query_label = df_dict[entry]['TLabel'] + ' Query'
 
-            worksheet.write_string(startrow, 0, filter_label)
-            filter_df.to_excel(writer, sheet_name='Result', startrow=startrow+1, startcol=0)
+            worksheet = workbook.add_worksheet(df_dict[entry]['TLabel'])
+            writer.sheets[df_dict[entry]['TLabel']] = worksheet
+
+            worksheet.write_string(0, 0, filter_label)
+            filter_df.to_excel(writer, sheet_name=df_dict[entry]['TLabel'], startrow=1, startcol=0)
             worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
-            query_df.to_excel(writer, sheet_name ='Result', startrow=startrow + filter_df.shape[0] + 5, startcol=0)
+            query_df.to_excel(writer, sheet_name =df_dict[entry]['TLabel'], startrow= filter_df.shape[0] + 5, startcol=0)
+            auto_adjust_xlsx_column_width(query_df, writer, sheet_name=df_dict[entry]['TLabel'], margin=0)
 
-            def col_autowidth(df, worksheet):
-                for column in df:
-                    column_length = max(df[column].astype(str).map(len).max(), len(column))
-                    col_idx = df.columns.get_loc(column)+1
-                    worksheet.set_column(col_idx, col_idx, column_length)
-
-            col_autowidth(query_df, worksheet)
-
-            if not filter_df.empty:
-                    col_autowidth(filter_df, worksheet)
-            startrow += filter_df.shape[0] + query_df.shape[0] + 10
     writer.save()
     processed_data = output.getvalue()        
     return processed_data
@@ -659,6 +691,6 @@ if "dev" not in st.session_state:
 
 # authentication
 if st.session_state.user or st.session_state.dev:
-    main()
+    filter_query()
 else:
     password_manager(cursor)
