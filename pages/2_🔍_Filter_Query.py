@@ -117,7 +117,7 @@ def filter_query():
     st.write('# Project Filtering')
     st.write('')
     st.write('')
-    st.write('### Filter Criteria')
+    st.write('### Filter Query')
 
     # creating form
     form_inputs = {
@@ -490,7 +490,7 @@ def filter_query():
 
     # display query results
     st.write("""
-        ## Filter Query
+        ## Filter Results
         ##### Based on above selections:
     """)
 
@@ -641,7 +641,7 @@ def filter_query():
     # close cursor
     cursor.close()
 
-def output_excel(df_dict):
+def output_excel(df_dict, current_df):
     """
     Author: Ali Kufaishi
     Date: 7/27/2022
