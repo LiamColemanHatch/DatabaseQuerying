@@ -469,24 +469,25 @@ def filter_query():
     # if metals criteria is used, filter for metal, along with rest of payable metals for that project.
 
     # if exclusive button is toggled, exclusive metal criteria used, else inclusive metal search
-    if exclusive_inputs_toggle:
-        dropped_metals = dropdown_order['payable_metals'][0].values.tolist()
-        dropped_metals.remove('')
+    for input in exclusive_inputs_toggle:
+        if exclusive_inputs_toggle[input]:
+            dropped_metals = dropdown_order['payable_metals'][0].values.tolist()
+            dropped_metals.remove('')
+            if form_inputs['payable_metals'][0] != '':
+                project_dump = project_dump[project_dump['Payable Metal'] != '']  
+                for metal in form_inputs['payable_metals']:
+                    dropped_metals.remove(metal)
+                for metal in dropped_metals:
+                    project_dump = project_dump[project_dump['Payable Metal'].str.contains(metal)==False]    
+        else:
+            if form_inputs['payable_metals'][0] != '':
+                for x, metal in enumerate(form_inputs['payable_metals']):
+                    if x == 0:
+                        query = project_dump['Payable Metal'].str.contains(metal)
+                    else:
+                        query = query | project_dump['Payable Metal'].str.contains(metal)
+                project_dump = project_dump[query]
 
-        if form_inputs['payable_metals'][0] != '':
-            project_dump = project_dump[project_dump['Payable Metal'] != '']  
-            for metal in form_inputs['payable_metals']:
-                dropped_metals.remove(metal)
-            for metal in dropped_metals:
-                project_dump = project_dump[project_dump['Payable Metal'].str.contains(metal)==False]    
-    else:
-        if form_inputs['payable_metals'][0] != '':
-            for x, metal in enumerate(form_inputs['payable_metals']):
-                if x == 0:
-                    query = project_dump['Payable Metal'].str.contains(metal)
-                else:
-                    query = query | project_dump['Payable Metal'].str.contains(metal)
-            project_dump = project_dump[query]
 
     # display query results
     st.write("""
@@ -576,8 +577,8 @@ def filter_query():
 
     if 'dfs' not in st.session_state:
         st.session_state.dfs = {}
-        for i in range(10):
-            st.session_state.dfs[i] = {'TLabel': None, 'Filter': pd.DataFrame({}), 'Query':pd.DataFrame({})}
+        #for i in range(10):
+        #    st.session_state.dfs[i] = {'TLabel': None, 'Filter': pd.DataFrame({}), 'Query':pd.DataFrame({})}
     
     with st.sidebar:
         tlabel = st.text_input(label="Enter Query Name")
@@ -588,8 +589,16 @@ def filter_query():
         if tlabel == '':
             with st.sidebar:
                 st.warning("Please Enter Query Name")
+        elif tlabel in st.session_state.dfs:
+            with st.sidebar:
+                st.warning("You entered a name that is currently used within the cache.\n Please enter another.")
         else:
-            for i in range(10):
+            st.session_state.dfs[tlabel] = {}
+            st.session_state.dfs[tlabel]['Filter'] = criteria_display
+            st.session_state.dfs[tlabel]['Query'] = project_dump
+            
+            
+            """for i in range(10):
                 if  st.session_state.dfs[i]['Query'].empty:
                     st.session_state.dfs[i]['Filter'] = criteria_display
                     st.session_state.dfs[i]['Query'] = project_dump
@@ -603,41 +612,44 @@ def filter_query():
                     with st.sidebar:
                         st.warning('This name is already being used to label another query in the cache')
                     break
-    
-    # list for the cache list
-    cached_queries = []
-    for queries in st.session_state.dfs:
-        if st.session_state.dfs[queries]['TLabel']:
-            cached_queries.append(st.session_state.dfs[queries]['TLabel'])
+            """
+       
 
     # display of cached queries. removing elements from the list will remove the query-filter pair from the df_dict
     with st.sidebar:
-        cache_update = st.multiselect(label='Cached Queries:', default=cached_queries, options=cached_queries, help='Press on the x of the queries to \
+        list_of_queries = list(st.session_state.dfs.keys())
+        cache_update = st.multiselect(label='Cached Queries:', default=list_of_queries, options=list_of_queries, help='Press on the x of the queries to \
             clear them from cache.')
 
     # checking whether element has been removed from the list. Then removing from list.
-    if cache_update != cached_queries:
-        set(cached_queries)
+    if cache_update != list_of_queries:
+        set(list_of_queries)
         set(cache_update)
-        dropped_queries = list(set(cached_queries).difference(cache_update))
-        for queries in st.session_state.dfs:
-            if st.session_state.dfs[queries]['TLabel']:
-                for i in range(len(dropped_queries)):
-                    if st.session_state.dfs[queries]['TLabel'] == dropped_queries[i]:
-                        st.session_state.dfs[queries]['Filter'] = pd.DataFrame({})
-                        st.session_state.dfs[queries]['Query'] = pd.DataFrame({})
-                        st.session_state.dfs[queries]['TLabel'] = None
+        dropped_queries = list(set(list_of_queries).difference(cache_update))
+        for query in dropped_queries:
+            if query in st.session_state.dfs:
+                st.session_state.dfs.pop(query)
+        st.experimental_rerun()
 
-    # processing cached filter-query pair into xlsx object
-    #processed_data = output_excel(st.session_state.dfs, project_dump, criteria_display)
+    # check to see if cache is empty, if so block download from occuring
 
+    if st.session_state.dfs == {}:
+        download_toggle = True
+        with st.sidebar:
+            st.info('Give your query a name and cache it in order to download it.')
+    else:
+        download_toggle = False
     # download button for query output
-    st.download_button(
-    label="Download Query Results",
-    data= output_excel(st.session_state.dfs, project_dump, criteria_display),
-    file_name= 'FilteredDatabaseQuery.xlsx',
-    key='download-excel'
-    )
+
+
+    with st.sidebar:
+        st.download_button(
+        label="Download Query Results",
+        data= output_excel(st.session_state.dfs, project_dump, criteria_display),
+        file_name= 'FilteredDatabaseQuery.xlsx',
+        key='download-excel',
+        disabled=download_toggle
+        )
 
     # close cursor
     cursor.close()
@@ -665,21 +677,13 @@ def output_excel(df_dict, current_query_df, current_filter_df):
     workbook = writer.book
 
     # writing dfs to excel
-    for entry, x in enumerate(df_dict):
-        if df_dict[entry]['Query'].empty and x == 0:
-            filter_df = current_filter_df
-            query_df = current_query_df
-            filter_label = 'Query Filter'
-            query_label = 'Query Results'
-            sheet_label = 'Query'
-        elif df_dict[entry]['Query'].empty:
-            break
-        else:
+    for entry in df_dict:
+        if entry:
             filter_df = df_dict[entry]['Filter']
             query_df = df_dict[entry]['Query']
-            filter_label = df_dict[entry]['TLabel'] + ' Filter'
-            query_label = df_dict[entry]['TLabel'] + ' Results'
-            sheet_label = df_dict[entry]['TLabel']
+            filter_label = entry + ' Filter'
+            query_label = entry + ' Results'
+            sheet_label = str(entry)
 
         worksheet = workbook.add_worksheet(sheet_label)
         writer.sheets[sheet_label] = worksheet
