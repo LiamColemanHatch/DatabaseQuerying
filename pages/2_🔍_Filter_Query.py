@@ -638,7 +638,6 @@ def filter_query():
     file_name= 'FilteredDatabaseQuery.xlsx',
     key='download-excel'
     )
-    st.write(st.session_state.dfs)
 
     # close cursor
     cursor.close()
@@ -665,12 +664,6 @@ def output_excel(df_dict, current_query_df, current_filter_df):
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
 
-    # if no Queries are cached, use currently filter query on display
-    # if df_dict[0]['Query'].empty:
-    #     df_dict[0]['Filter'] = current_filter_df
-    #     df_dict[0]['Query'] = current_query_df
-    #     df_dict[0]['TLabel'] = 'Query 1'
-
     # writing dfs to excel
     for entry, x in enumerate(df_dict):
         if df_dict[entry]['Query'].empty and x == 0:
@@ -679,31 +672,23 @@ def output_excel(df_dict, current_query_df, current_filter_df):
             filter_label = 'Query Filter'
             query_label = 'Query Results'
             sheet_label = 'Query'
-
-            worksheet = workbook.add_worksheet(sheet_label)
-            writer.sheets[sheet_label] = worksheet
-
-            worksheet.write_string(0, 0, filter_label)
-            filter_df.to_excel(writer, sheet_name=sheet_label, startrow=1, startcol=0)
-            worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
-            query_df.to_excel(writer, sheet_name=sheet_label, startrow= filter_df.shape[0] + 5, startcol=0)
-            auto_adjust_xlsx_column_width(query_df, writer, sheet_name=sheet_label, margin=0)
-
-        if not df_dict[entry]['Query'].empty:
+        elif df_dict[entry]['Query'].empty:
+            break
+        else:
             filter_df = df_dict[entry]['Filter']
             query_df = df_dict[entry]['Query']
             filter_label = df_dict[entry]['TLabel'] + ' Filter'
             query_label = df_dict[entry]['TLabel'] + ' Results'
             sheet_label = df_dict[entry]['TLabel']
 
-            worksheet = workbook.add_worksheet(sheet_label)
-            writer.sheets[sheet_label] = worksheet
+        worksheet = workbook.add_worksheet(sheet_label)
+        writer.sheets[sheet_label] = worksheet
 
-            worksheet.write_string(0, 0, filter_label)
-            filter_df.to_excel(writer, sheet_name=sheet_label, startrow=1, startcol=0)
-            worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
-            query_df.to_excel(writer, sheet_name=sheet_label, startrow= filter_df.shape[0] + 5, startcol=0)
-            auto_adjust_xlsx_column_width(query_df, writer, sheet_name=sheet_label, margin=0)
+        worksheet.write_string(0, 0, filter_label)
+        filter_df.to_excel(writer, sheet_name=sheet_label, startrow=1, startcol=0)
+        worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
+        query_df.to_excel(writer, sheet_name=sheet_label, startrow= filter_df.shape[0] + 5, startcol=0)
+        auto_adjust_xlsx_column_width(query_df, writer, sheet_name=sheet_label, margin=0)
 
 
     writer.save()
