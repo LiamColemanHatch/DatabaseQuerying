@@ -1,4 +1,4 @@
-
+from logging import Filter
 from openpyxl import Workbook
 import pandas as pd
 import streamlit as st
@@ -598,6 +598,7 @@ def filter_query():
                 elif st.session_state.dfs[i]['Query'].equals(project_dump):
                     with st.sidebar:
                         st.warning('This query is already in the cache.')
+                    break
                 elif st.session_state.dfs[i]['TLabel'] == tlabel:
                     with st.sidebar:
                         st.warning('This name is already being used to label another query in the cache')
@@ -628,20 +629,21 @@ def filter_query():
                         st.session_state.dfs[queries]['TLabel'] = None
 
     # processing cached filter-query pair into xlsx object
-    processed_data = output_excel(st.session_state.dfs)
+    #processed_data = output_excel(st.session_state.dfs, project_dump, criteria_display)
 
     # download button for query output
     st.download_button(
     label="Download Query Results",
-    data=processed_data,
+    data= output_excel(st.session_state.dfs, project_dump, criteria_display),
     file_name= 'FilteredDatabaseQuery.xlsx',
     key='download-excel'
     )
+    st.write(st.session_state.dfs)
 
     # close cursor
     cursor.close()
 
-def output_excel(df_dict, current_df):
+def output_excel(df_dict, current_query_df, current_filter_df):
     """
     Author: Ali Kufaishi
     Date: 7/27/2022
@@ -663,22 +665,46 @@ def output_excel(df_dict, current_df):
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
 
+    # if no Queries are cached, use currently filter query on display
+    # if df_dict[0]['Query'].empty:
+    #     df_dict[0]['Filter'] = current_filter_df
+    #     df_dict[0]['Query'] = current_query_df
+    #     df_dict[0]['TLabel'] = 'Query 1'
+
     # writing dfs to excel
-    for entry in df_dict:
+    for entry, x in enumerate(df_dict):
+        if df_dict[entry]['Query'].empty and x == 0:
+            filter_df = current_filter_df
+            query_df = current_query_df
+            filter_label = 'Query Filter'
+            query_label = 'Query Results'
+            sheet_label = 'Query'
+
+            worksheet = workbook.add_worksheet(sheet_label)
+            writer.sheets[sheet_label] = worksheet
+
+            worksheet.write_string(0, 0, filter_label)
+            filter_df.to_excel(writer, sheet_name=sheet_label, startrow=1, startcol=0)
+            worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
+            query_df.to_excel(writer, sheet_name=sheet_label, startrow= filter_df.shape[0] + 5, startcol=0)
+            auto_adjust_xlsx_column_width(query_df, writer, sheet_name=sheet_label, margin=0)
+
         if not df_dict[entry]['Query'].empty:
             filter_df = df_dict[entry]['Filter']
             query_df = df_dict[entry]['Query']
             filter_label = df_dict[entry]['TLabel'] + ' Filter'
-            query_label = df_dict[entry]['TLabel'] + ' Query'
+            query_label = df_dict[entry]['TLabel'] + ' Results'
+            sheet_label = df_dict[entry]['TLabel']
 
-            worksheet = workbook.add_worksheet(df_dict[entry]['TLabel'])
-            writer.sheets[df_dict[entry]['TLabel']] = worksheet
+            worksheet = workbook.add_worksheet(sheet_label)
+            writer.sheets[sheet_label] = worksheet
 
             worksheet.write_string(0, 0, filter_label)
-            filter_df.to_excel(writer, sheet_name=df_dict[entry]['TLabel'], startrow=1, startcol=0)
+            filter_df.to_excel(writer, sheet_name=sheet_label, startrow=1, startcol=0)
             worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
-            query_df.to_excel(writer, sheet_name =df_dict[entry]['TLabel'], startrow= filter_df.shape[0] + 5, startcol=0)
-            auto_adjust_xlsx_column_width(query_df, writer, sheet_name=df_dict[entry]['TLabel'], margin=0)
+            query_df.to_excel(writer, sheet_name=sheet_label, startrow= filter_df.shape[0] + 5, startcol=0)
+            auto_adjust_xlsx_column_width(query_df, writer, sheet_name=sheet_label, margin=0)
+
 
     writer.save()
     processed_data = output.getvalue()        
