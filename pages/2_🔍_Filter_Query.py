@@ -12,6 +12,7 @@ from login import password_manager
 from UliPlot.XLSX import auto_adjust_xlsx_column_width
 import json
 
+
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
 
@@ -614,7 +615,7 @@ def filter_query():
     if st.session_state.dfs == {}:
         download_toggle = True
         with st.sidebar:
-            st.info('Give your query a name and cache it in order to download it.')
+            st.info('Give your query a name and cache it to download it.')
     else:
         download_toggle = False
     # download button for query output
