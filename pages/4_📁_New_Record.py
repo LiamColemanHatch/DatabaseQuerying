@@ -37,9 +37,6 @@ def new_record():
         proj_columns = ['Project Name', 'Continent', 'Country', 'Study Type', 'Mine Type', 'Total Reserves', 'Ore Treatment Rate (t/a)', 'Main Process Type', 'No of HPM Vessels'
             'No of Processing Years', 'No of Pre-Production Years', 'No of Closure Years', 'Date of Information']
 
-        
-        
-
         project_table = pd.DataFrame.from_records(columns=proj_columns, data=proj_data)
 
         # initiating data storing variable

@@ -10,6 +10,7 @@ from Config import Database_Connection
 from Config import df_print_noindex
 from login import password_manager
 from UliPlot.XLSX import auto_adjust_xlsx_column_width
+import json
 
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
@@ -142,7 +143,6 @@ def filter_query():
         'POX_type': None,
     }
 
-
     # creating dropdowns for each input type, multi vs. single is determine by the given dropdown and it's tag in dropdown queries
     for input_type in form_inputs:
         if dropdown_queries[input_type]['selectype'] == 'multi':
@@ -264,7 +264,6 @@ def filter_query():
             slider_data[slider]['data'] = (None, None)
 
     # append dropdown data to callable parameters list for querying. study_types and POX_type are outliers requiring special forms of input. payable metal criteria is done further below
-
     rangeparams = []
 
     for input in form_inputs:
@@ -283,7 +282,6 @@ def filter_query():
                 rangeparams.append(f"%{form_inputs[input][i]}%")
 
     # append slider data to callable parameters list for querying
-
     for slider in slider_data:
         if slider_properties[slider]['disabled'] is False:
             rangeparams.append(slider_data[slider]['data'][0])
@@ -344,6 +342,7 @@ def filter_query():
         'site_conditions': None,
         'POX_type': None,
     }
+
     # generates sql code to add to base query. Based on entries to the form, will adjust for number of inputs by adding more sql criteria. sql stored in sql input
     for type in sql_input:
 
@@ -488,7 +487,6 @@ def filter_query():
                         query = query | project_dump['Payable Metal'].str.contains(metal)
                 project_dump = project_dump[query]
 
-
     # display query results
     st.write("""
         ## Filter Results
@@ -577,8 +575,6 @@ def filter_query():
 
     if 'dfs' not in st.session_state:
         st.session_state.dfs = {}
-        #for i in range(10):
-        #    st.session_state.dfs[i] = {'TLabel': None, 'Filter': pd.DataFrame({}), 'Query':pd.DataFrame({})}
     
     with st.sidebar:
         tlabel = st.text_input(label="Enter Query Name")
@@ -596,25 +592,7 @@ def filter_query():
             st.session_state.dfs[tlabel] = {}
             st.session_state.dfs[tlabel]['Filter'] = criteria_display
             st.session_state.dfs[tlabel]['Query'] = project_dump
-            
-            
-            """for i in range(10):
-                if  st.session_state.dfs[i]['Query'].empty:
-                    st.session_state.dfs[i]['Filter'] = criteria_display
-                    st.session_state.dfs[i]['Query'] = project_dump
-                    st.session_state.dfs[i]['TLabel'] = tlabel
-                    break
-                elif st.session_state.dfs[i]['Query'].equals(project_dump):
-                    with st.sidebar:
-                        st.warning('This query is already in the cache.')
-                    break
-                elif st.session_state.dfs[i]['TLabel'] == tlabel:
-                    with st.sidebar:
-                        st.warning('This name is already being used to label another query in the cache')
-                    break
-            """
        
-
     # display of cached queries. removing elements from the list will remove the query-filter pair from the df_dict
     with st.sidebar:
         list_of_queries = list(st.session_state.dfs.keys())
@@ -640,7 +618,6 @@ def filter_query():
     else:
         download_toggle = False
     # download button for query output
-
 
     with st.sidebar:
         st.download_button(
