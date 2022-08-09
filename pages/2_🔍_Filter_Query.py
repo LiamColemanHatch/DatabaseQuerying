@@ -422,6 +422,8 @@ def filter_query():
         columns=columns,
     )
 
+    st.write(records[100])
+
     # setting database index as dataframe index
     project_dump.set_index(['ID'], inplace=True)
 

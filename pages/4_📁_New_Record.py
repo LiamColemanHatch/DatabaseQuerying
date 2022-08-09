@@ -34,16 +34,39 @@ def new_record():
     # Project Data Input
     if choose == "Project":
 
-        proj_columns = ['Project Name', 'Continent', 'Country', 'Study Type', 'Mine Type', 'Total Reserves', 'Ore Treatment Rate (t/a)', 'Main Process Type', 'No of HPM Vessels'
-            'No of Processing Years', 'No of Pre-Production Years', 'No of Closure Years', 'Date of Information']
+        proj_data = {
+            'Project Name': [None],
+            'Continent': [None],
+            'Country': [None],
+            'Study Type': [None],
+            'Mine Type': [None],
+            'Total Reserves': [None],
+            'Ore Treatment Rate (t/a)': [None],
+            'Main Process Type': [None],
+            'No of HPM Vessels': [None],
+            'No of Processing Years': [None],
+            'No of Pre-Production Years': [None],
+            'No of Closure Years': [None]
+            }
 
-        proj_data = [None, None, None, None, None, None, None, None, None, None, None, None, None]
 
-        project_table = pd.DataFrame.from_records(columns=proj_columns, data=proj_data)
 
         # initiating data storing variable
         if "project_data" not in st.session_state:
-            st.session_state.project_data = {}
+            st.session_state.project_data = {
+            'Project Name': [None],
+            'Continent': [None],
+            'Country': [None],
+            'Study Type': [None],
+            'Mine Type': [None],
+            'Total Reserves': [None],
+            'Ore Treatment Rate (t/a)': [None],
+            'Main Process Type': [None],
+            'No of HPM Vessels': [None],
+            'No of Processing Years': [None],
+            'No of Pre-Production Years': [None],
+            'No of Closure Years': [None]
+            }
 
         col1, col2, col3 = st.columns((3, 1, 1))
 
@@ -51,15 +74,17 @@ def new_record():
             proj_name = st.text_input(label='Project Name')
         
         if proj_name:
-            st.session_state.project_data['Project_Name'] = proj_name
+            st.session_state.project_data['Project Name'] = [proj_name]
+            st.write(st.session_state.project_data['Project Name'])
 
-        st.markdown(st.session_state.project_data['Project_Name'])
-        st._legacy_dataframe(project_table)
+        project_table = pd.DataFrame.from_dict(st.session_state.project_data)
+        project_table = project_table.transpose()
 
+        st.table(project_table)
 
     if choose == "Company":
 
-        st.write(st.session_state.project_data['Project_Name'])
+        st.write(st.session_state.project_data['Project Name'])
         
 
 if "user" not in st.session_state:
