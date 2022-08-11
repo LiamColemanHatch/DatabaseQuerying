@@ -11,7 +11,7 @@ from Config import df_print_noindex
 from login import password_manager
 from UliPlot.XLSX import auto_adjust_xlsx_column_width
 import json
-
+from streamlit_tags import st_tags
 
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
@@ -333,7 +333,6 @@ def filter_query():
             slider_queries[slider]['column'])
 
     # additions to sql query for field inputs, depending on number of inputs
-
     sql_input = {
         'projects': None,
         'countries': None,
@@ -421,8 +420,6 @@ def filter_query():
         data=records,
         columns=columns,
     )
-
-    st.write(records[100])
 
     # setting database index as dataframe index
     project_dump.set_index(['ID'], inplace=True)
@@ -568,7 +565,6 @@ def filter_query():
 
     criteria_display = pd.DataFrame(list(zip(criteria_display_type, criteria_display_value)), columns= ['Criteria', 'Value'])
 
-
     # function to display table with formatting
     if criteria_display_value:
         df_print_noindex(criteria_display, type='Table')
@@ -673,7 +669,6 @@ def output_excel(df_dict, current_query_df, current_filter_df):
         worksheet.write_string(filter_df.shape[0] + 4, 0, query_label)
         query_df.to_excel(writer, sheet_name=sheet_label, startrow= filter_df.shape[0] + 5, startcol=0)
         auto_adjust_xlsx_column_width(query_df, writer, sheet_name=sheet_label, margin=0)
-
 
     writer.save()
     processed_data = output.getvalue()        
