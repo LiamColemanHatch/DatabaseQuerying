@@ -10,7 +10,7 @@ from Config import Database_Connection
 from Config import df_print_noindex
 from login import password_manager
 from UliPlot.XLSX import auto_adjust_xlsx_column_width
-from streamlit_tags import st_tags
+
 
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
@@ -22,9 +22,10 @@ st.set_page_config(layout="wide")
 cursor,cnxn = Database_Connection()
 
 # clear form button. dict and field name and key must be the same.
-def clear_entry(data_field, data_dict):
-    st.session_state[data_field] = ''
-    data_dict[data_field] = [None]
+def clear_entry(data_dict):
+    
+    for data_field in data_dict:
+        data_dict[data_field] = [None]
 
 
 def new_record():
@@ -37,9 +38,11 @@ def new_record():
             "nav-link-selected": {"background-color": "#ffffff"},
                             }
     )
-
+    
     # Project Data Input
     if choose == "Project":
+
+        store_meta = cursor.columns(table='dbo.Project', catalog=None, schema=None, column=None)
 
         # initiating data storing dict
         if "project_data" not in st.session_state:
@@ -58,39 +61,31 @@ def new_record():
             'No of Closure Years': [None]
             }
 
-        col1, col2 = st.columns((1, 1))
+
+        col1, col2 = st.columns((10, 2))
 
         # for each text input, check if input is blank (textbox submits empty variable any time box is cleared)
         # if text input is not empty, store in dict
-        with st.form('Project Data'):
-            for data_type in st.session_state.project_data:
+        for data_type in st.session_state.project_data:
+            with col2:
+                new_toggle = st.radio(label='', options=['Existing', 'New'], key=data_type)
+            if new_toggle == 'New':
                 with col1:
                     data_input = st.text_input(label=data_type, key=data_type)
-                if data_input:
-                    st.session_state.project_data[data_type] = [data_input]
-
-        keywords = st_tags(
-            label='# Enter Keywords:',
-            text='Press enter to add more',
-            value=['Zero', 'One', 'Two'],
-            suggestions=['five', 'six', 'seven', 
-                        'eight', 'nine', 'three', 
-                        'eleven', 'ten', 'four'],
-            maxtags = 4,
-            key='1'
-            )
+            else:
+                with col1:
+                    data_input = st.selectbox(label=data_type, options=['','sasa','dasd'], key=data_type)
+            if data_input:
+                st.session_state.project_data[data_type] = [data_input]
 
         # generate df to display entered data
         project_table = pd.DataFrame.from_dict(st.session_state.project_data)
         project_table = project_table.transpose()
         project_table = project_table.replace(np.nan, '')
 
-        with col2:
+        with st.sidebar:
             st.table(project_table)
-            if st.button('Clear'):
-                for data_field in st.session_state.project_data:
-                    clear_entry(data_field, st.session_state.project_data)
-                
+            st.button('Clear', on_click=clear_entry(st.session_state.project_data))
 
     if choose == "Company":
 

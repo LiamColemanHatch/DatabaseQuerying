@@ -12,6 +12,8 @@ from login import password_manager
 from UliPlot.XLSX import auto_adjust_xlsx_column_width
 import json
 from streamlit_tags import st_tags
+from st_aggrid import AgGrid
+
 
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
@@ -572,6 +574,9 @@ def filter_query():
     # display Filter Query
     st._legacy_dataframe(project_dump, width=50000, height=700)
 
+    # Potential new integration of AgGrid for displaying data, contains integrating filtering functions
+    # AgGrid(project_dump, height=800)
+
     if 'dfs' not in st.session_state:
         st.session_state.dfs = {}
     
@@ -620,7 +625,7 @@ def filter_query():
 
     with st.sidebar:
         st.download_button(
-        label="Download Query Results",
+        label="Export Query Results",
         data= output_excel(st.session_state.dfs, project_dump, criteria_display),
         file_name= 'FilteredDatabaseQuery.xlsx',
         key='download-excel',

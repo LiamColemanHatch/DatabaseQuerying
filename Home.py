@@ -27,6 +27,13 @@ def main():
 
     st.sidebar.success("Select a tool above.")
 
+    st.markdown(f'''
+    <style>
+        section[data-testid="stSidebar"] .css-ng1t4o {{width: 50rem;}}
+        section[data-testid="stSidebar"] .css-1d391kg {{width: 50rem;}}
+    </style>
+    ''',unsafe_allow_html=True)
+
     st.write(
         """
         This web app uses data pulled from the access database which has been migrated to Hatch database servers for greater reliability
