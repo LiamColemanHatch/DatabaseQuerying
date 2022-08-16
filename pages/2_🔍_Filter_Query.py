@@ -1,4 +1,5 @@
 from logging import Filter
+from click import style
 from openpyxl import Workbook
 import pandas as pd
 import streamlit as st
@@ -575,7 +576,7 @@ def filter_query():
     st._legacy_dataframe(project_dump, width=50000, height=700)
 
     # Potential new integration of AgGrid for displaying data, contains integrating filtering functions
-    # AgGrid(project_dump, height=800)
+    # AgGrid(project_dump, height=800, theme='streamlit')
 
     if 'dfs' not in st.session_state:
         st.session_state.dfs = {}
