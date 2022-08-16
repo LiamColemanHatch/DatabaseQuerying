@@ -10,7 +10,8 @@ from Config import Database_Connection
 from Config import df_print_noindex
 from login import password_manager
 from UliPlot.XLSX import auto_adjust_xlsx_column_width
-
+from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid.shared import GridUpdateMode, DataReturnMode
 
 # programming aid variables
 degree_sign = u'\N{DEGREE SIGN}'
@@ -26,6 +27,8 @@ def clear_entry(data_dict):
     
     for data_field in data_dict:
         data_dict[data_field] = [None]
+
+    st.session_state.Project_Name = [None]
 
 
 def new_record():
@@ -47,22 +50,21 @@ def new_record():
         # initiating data storing dict
         if "project_data" not in st.session_state:
             st.session_state.project_data = {
-            'Project Name': [None],
-            'Continent': [None],
-            'Country': [None],
-            'Study Type': [None],
-            'Mine Type': [None],
-            'Total Reserves': [None],
-            'Ore Treatment Rate (t/a)': [None],
-            'Main Process Type': [None],
-            'No of HPM Vessels': [None],
-            'No of Processing Years': [None],
-            'No of Pre-Production Years': [None],
-            'No of Closure Years': [None]
+            'Project Name': [''],
+            'Continent': [''],
+            'Country': [''],
+            'Study Type': [''],
+            'Mine Type': [''],
+            'Total Reserves': [''],
+            'Ore Treatment Rate (t/a)': [''],
+            'Main Process Type': [''],
+            'No of HPM Vessels': [''],
+            'No of Processing Years': [''],
+            'No of Pre-Production Years': [''],
+            'No of Closure Years': ['']
             }
 
-
-        col1, col2 = st.columns((10, 2))
+        col1, col2, col3 = st.columns((10, 2, 1))
 
         # for each text input, check if input is blank (textbox submits empty variable any time box is cleared)
         # if text input is not empty, store in dict
@@ -71,21 +73,48 @@ def new_record():
                 new_toggle = st.radio(label='', options=['Existing', 'New'], key=data_type)
             if new_toggle == 'New':
                 with col1:
-                    data_input = st.text_input(label=data_type, key=data_type)
+                    st.write('')
+                    st.write('')
+                    st.write('')
+                    data_input = st.text_input(label=data_type, key=data_type, value=st.session_state.project_data[data_type][0])
             else:
                 with col1:
+                    st.write('')
+                    st.write('')
+                    st.write('')
                     data_input = st.selectbox(label=data_type, options=['','sasa','dasd'], key=data_type)
-            if data_input:
-                st.session_state.project_data[data_type] = [data_input]
+            with col2:
+                if st.button('Clear Field', key=data_type):
+                    st.session_state.project_data[data_type] = [None]
+                    del st.session_state[data_type]
+                elif data_input:
+                    st.session_state.project_data[data_type] = [data_input]
 
         # generate df to display entered data
         project_table = pd.DataFrame.from_dict(st.session_state.project_data)
         project_table = project_table.transpose()
+        project_table.columns = project_table.columns.astype(str) 
         project_table = project_table.replace(np.nan, '')
+
+        gb = GridOptionsBuilder.from_dataframe(project_table)
+        for column in project_table:
+            gb.configure_columns(column, header_name=column, editable=True, )
+
+        gridOptions = gb.build()
+        data = AgGrid(project_table, theme='streamlit', 
+        gridOptions=gridOptions, 
+        reload_data=False, 
+        editable=True, 
+        data_return_mode=DataReturnMode.AS_INPUT,
+        update_mode=GridUpdateMode.MODEL_CHANGED)
+
+        st.write(st.session_state)
+
+        # AgGrid(project_table, theme='streamlit',)
 
         with st.sidebar:
             st.table(project_table)
-            st.button('Clear', on_click=clear_entry(st.session_state.project_data))
+
 
     if choose == "Company":
 
